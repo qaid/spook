@@ -1,0 +1,49 @@
+# Build artifacts
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# App bundles (built locally)
+*.app
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Sensitive files
+*.env
+.env.*
+credentials.json
+secrets.json
+*.pem
+*.key
+*.p12
+
+# Debug
+*.dSYM.zip
+*.dSYM
+
+# User-specific
+xcuserdata/
+*.xcuserdatad
+
+# Archives
+*.ipa
+*.zip
+*.tar.gz
+
+# Logs
+*.log
+
+# Claude Code skills (local development tools)
+.claude/
