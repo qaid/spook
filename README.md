@@ -30,7 +30,13 @@ The name is a play on Sam Greenlee's 1969 novel *"The Spook Who Sat By the Door"
 
 ## Screenshots
 
-*Coming soon*
+<p align="center">
+  <img src="docs/images/app-overview.png" alt="Spook app overview" width="600">
+</p>
+
+| Menu Bar | Per-App Traffic | Traffic History |
+|----------|----------------|-----------------|
+| <img src="docs/images/menu-bar.png" alt="Menu bar" width="250"> | <img src="docs/images/app-list.png" alt="Per-app breakdown" width="250"> | <img src="docs/images/traffic-history.png" alt="Traffic history" width="250"> |
 
 ## Requirements
 
@@ -56,6 +62,10 @@ swift build -c release
 ### Pre-built Binary
 
 *Coming soon*
+
+### Website
+
+Visit the [landing page](https://qaid.github.io/spook/) for an overview of Spook's features.
 
 ## How It Works
 
@@ -98,8 +108,9 @@ See [deploy.sh](deploy.sh) for bundle assembly details.
 - Preferences window
 - Direction filtering (download/upload)
 - Search and freeze functionality
+- Landing page ([qaid.github.io/spook](https://qaid.github.io/spook/))
 
-### Phase 4: Refinement (Not Yet Started)
+### Roadmap
 - [ ] Performance optimization
 - [ ] Memory profiling
 - [ ] Edge case handling
