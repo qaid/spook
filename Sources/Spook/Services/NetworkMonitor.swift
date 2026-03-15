@@ -1,6 +1,7 @@
 import Foundation
 
 @Observable
+@MainActor
 class NetworkMonitor {
     var downloadSpeed: Int64 = 0
     var uploadSpeed: Int64 = 0
@@ -10,42 +11,55 @@ class NetworkMonitor {
 
     var onUpdate: ((Int64, Int64) -> Void)?
 
-    private var timer: Timer?
+    private var monitorTask: Task<Void, Never>?
     private var previousBytesIn: Int64 = 0
     private var previousBytesOut: Int64 = 0
     private var previousAppData: [String: (bytesIn: Int64, bytesOut: Int64)] = [:]
 
-    func startMonitoring() {
-        readInitialStats()
+    func startMonitoring() async {
+        await readInitialStats()
 
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.updateStats()
+        monitorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.updateStats()
+                try? await Task.sleep(for: .seconds(1))
+            }
         }
-        RunLoop.main.add(timer!, forMode: .common)
     }
 
     func stopMonitoring() {
-        timer?.invalidate()
-        timer = nil
+        monitorTask?.cancel()
+        monitorTask = nil
     }
 
-    private func readInitialStats() {
-        let stats = readNetworkStats()
+    private func readInitialStats() async {
+        let (stats, perAppData) = await Task.detached(priority: .userInitiated) { [self] in
+            let s = self.readNetworkStats()
+            let p = self.readPerAppStats()
+            return (s, p)
+        }.value
+
         previousBytesIn = stats.bytesIn
         previousBytesOut = stats.bytesOut
 
-        // Initialize per-app data
-        let perAppData = readPerAppStats()
         for app in perAppData {
             let key = "\(app.processName).\(app.pid)"
             previousAppData[key] = (app.bytesIn, app.bytesOut)
         }
     }
 
-    private func updateStats() {
-        // Update total stats
-        let stats = readNetworkStats()
+    private func updateStats() async {
+        // Run all three system commands concurrently off the main thread
+        let (stats, perAppData, connectionsByPid) = await Task.detached(priority: .userInitiated) { [self] in
+            async let s = self.readNetworkStats()
+            async let p = self.readPerAppStats()
+            async let c = self.readConnectionDetails()
+            return await (s, p, c)
+        }.value
 
+        // --- Everything below runs on @MainActor ---
+
+        // Update total stats
         let bytesInDelta = stats.bytesIn - previousBytesIn
         let bytesOutDelta = stats.bytesOut - previousBytesOut
 
@@ -67,9 +81,13 @@ class NetworkMonitor {
         }
 
         // Update per-app stats
-        var updatedApps = readPerAppStats()
+        var updatedApps = perAppData
+        var currentKeys = Set<String>()
+
         for i in updatedApps.indices {
             let key = "\(updatedApps[i].processName).\(updatedApps[i].pid)"
+            currentKeys.insert(key)
+
             if let previous = previousAppData[key] {
                 updatedApps[i].speedIn = max(0, updatedApps[i].bytesIn - previous.bytesIn)
                 updatedApps[i].speedOut = max(0, updatedApps[i].bytesOut - previous.bytesOut)
@@ -79,10 +97,12 @@ class NetworkMonitor {
             previousAppData[key] = (updatedApps[i].bytesIn, updatedApps[i].bytesOut)
         }
 
-        // Get connection details for active apps
-        let connectionsByPid = readConnectionDetails()
+        // Prune entries for processes no longer in nettop output
+        for key in previousAppData.keys where !currentKeys.contains(key) {
+            previousAppData.removeValue(forKey: key)
+        }
 
-        // Sort by current activity (total speed), filter out zero traffic
+        // Get connection details for active apps
         appTraffic = updatedApps
             .filter { $0.bytesIn > 0 || $0.bytesOut > 0 }
             .map { app in
@@ -102,7 +122,7 @@ class NetworkMonitor {
 
     // MARK: - Total Network Stats (netstat)
 
-    private func readNetworkStats() -> (bytesIn: Int64, bytesOut: Int64) {
+    nonisolated private func readNetworkStats() -> (bytesIn: Int64, bytesOut: Int64) {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/netstat")
         task.arguments = ["-ib"]
@@ -126,7 +146,7 @@ class NetworkMonitor {
         }
     }
 
-    private func parseNetstatOutput(_ output: String) -> (bytesIn: Int64, bytesOut: Int64) {
+    nonisolated private func parseNetstatOutput(_ output: String) -> (bytesIn: Int64, bytesOut: Int64) {
         var totalIn: Int64 = 0
         var totalOut: Int64 = 0
 
@@ -159,7 +179,7 @@ class NetworkMonitor {
 
     // MARK: - Per-App Stats (nettop)
 
-    private func readPerAppStats() -> [AppTraffic] {
+    nonisolated private func readPerAppStats() -> [AppTraffic] {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
         task.arguments = ["-P", "-L", "1", "-x", "-J", "bytes_in,bytes_out"]
@@ -183,7 +203,7 @@ class NetworkMonitor {
         }
     }
 
-    private func parseNettopOutput(_ output: String) -> [AppTraffic] {
+    nonisolated private func parseNettopOutput(_ output: String) -> [AppTraffic] {
         var apps: [AppTraffic] = []
 
         let lines = output.components(separatedBy: "\n")
@@ -221,7 +241,7 @@ class NetworkMonitor {
         return apps
     }
 
-    private func parseProcessInfo(_ info: String) -> (name: String, pid: pid_t) {
+    nonisolated private func parseProcessInfo(_ info: String) -> (name: String, pid: pid_t) {
         // Format: "process_name.pid" - but process name might contain dots
         // Find the last dot followed by only digits
         if let lastDotRange = info.range(of: ".", options: .backwards) {
@@ -236,7 +256,7 @@ class NetworkMonitor {
 
     // MARK: - Connection Details (lsof)
 
-    private func readConnectionDetails() -> [pid_t: [Connection]] {
+    nonisolated private func readConnectionDetails() -> [pid_t: [Connection]] {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         task.arguments = ["-i", "-n", "-P"]
@@ -260,7 +280,7 @@ class NetworkMonitor {
         }
     }
 
-    private func parseLsofOutput(_ output: String) -> [pid_t: [Connection]] {
+    nonisolated private func parseLsofOutput(_ output: String) -> [pid_t: [Connection]] {
         var connectionsByPid: [pid_t: [Connection]] = [:]
 
         let lines = output.components(separatedBy: "\n")
@@ -310,7 +330,7 @@ class NetworkMonitor {
         return connectionsByPid
     }
 
-    private func parseConnectionName(_ name: String, protocolType: String, state: String) -> Connection? {
+    nonisolated private func parseConnectionName(_ name: String, protocolType: String, state: String) -> Connection? {
         // Format: "local:port->remote:port" or "*:port (LISTEN)"
         if name.contains("->") {
             let parts = name.components(separatedBy: "->")

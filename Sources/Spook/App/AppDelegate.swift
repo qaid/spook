@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var detailPanel: DetailPanel?
@@ -63,7 +64,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         networkMonitor?.onUpdate = { [weak self] downloadSpeed, uploadSpeed in
             self?.updateMenuBarDisplay(download: downloadSpeed, upload: uploadSpeed)
         }
-        networkMonitor?.startMonitoring()
+        Task {
+            await networkMonitor?.startMonitoring()
+        }
     }
 
     private func updateMenuBarDisplay(download: Int64, upload: Int64) {
@@ -161,7 +164,7 @@ class DetailPanel: NSPanel {
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 360, height: 600),
-            styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+            styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
