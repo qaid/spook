@@ -6,6 +6,7 @@ enum TrafficDirection: String, CaseIterable {
     case upload = "Upload"
 }
 
+@MainActor
 struct DetailView: View {
     @State private var monitor: NetworkMonitor
     @State private var isSortPaused: Bool = false

@@ -34,7 +34,23 @@ if [ -f "Resources/AppIcon.icns" ]; then
 fi
 
 echo "Code signing..."
-codesign --force --sign - "$APP_PATH"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
+ENTITLEMENTS="Resources/Spook.entitlements"
+
+if [ -n "$SIGNING_IDENTITY" ]; then
+    echo "Signing with Developer ID: $SIGNING_IDENTITY"
+    codesign --force --deep --sign "$SIGNING_IDENTITY" \
+        --options runtime \
+        --entitlements "$ENTITLEMENTS" \
+        --timestamp \
+        "$APP_PATH"
+
+    echo "Verifying code signature..."
+    codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+else
+    echo "No SIGNING_IDENTITY set, using ad-hoc signing"
+    codesign --force --sign - "$APP_PATH"
+fi
 
 echo "Registering with Launch Services..."
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_PATH"
