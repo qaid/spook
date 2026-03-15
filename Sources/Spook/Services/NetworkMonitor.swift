@@ -22,7 +22,11 @@ class NetworkMonitor {
         monitorTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.updateStats()
-                try? await Task.sleep(for: .seconds(1))
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    break
+                }
             }
         }
     }
@@ -33,7 +37,8 @@ class NetworkMonitor {
     }
 
     private func readInitialStats() async {
-        let (stats, perAppData) = await Task.detached(priority: .userInitiated) { [self] in
+        let (stats, perAppData) = await Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return ((bytesIn: Int64(0), bytesOut: Int64(0)), [AppTraffic]()) }
             let s = self.readNetworkStats()
             let p = self.readPerAppStats()
             return (s, p)
@@ -50,7 +55,10 @@ class NetworkMonitor {
 
     private func updateStats() async {
         // Run all three system commands concurrently off the main thread
-        let (stats, perAppData, connectionsByPid) = await Task.detached(priority: .userInitiated) { [self] in
+        let (stats, perAppData, connectionsByPid) = await Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else {
+                return ((bytesIn: Int64(0), bytesOut: Int64(0)), [AppTraffic](), [pid_t: [Connection]]())
+            }
             async let s = self.readNetworkStats()
             async let p = self.readPerAppStats()
             async let c = self.readConnectionDetails()

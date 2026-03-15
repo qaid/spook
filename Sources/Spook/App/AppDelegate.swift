@@ -70,11 +70,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateMenuBarDisplay(download: Int64, upload: Int64) {
-        DispatchQueue.main.async { [weak self] in
-            let downloadStr = SpeedFormatter.format(download)
-            let uploadStr = SpeedFormatter.format(upload)
-            self?.statusItem?.button?.title = "\u{2193} \(downloadStr)  \u{2191} \(uploadStr)"
-        }
+        let downloadStr = SpeedFormatter.format(download)
+        let uploadStr = SpeedFormatter.format(upload)
+        statusItem?.button?.title = "\u{2193} \(downloadStr)  \u{2191} \(uploadStr)"
     }
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {

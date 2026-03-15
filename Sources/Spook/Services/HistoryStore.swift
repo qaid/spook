@@ -179,7 +179,11 @@ actor HistoryStore {
             sqlite3_bind_text(stmt, 3, app.displayName, -1, nil)
             sqlite3_bind_int64(stmt, 4, deltaIn)
             sqlite3_bind_int64(stmt, 5, deltaOut)
-            sqlite3_step(stmt)
+            if sqlite3_step(stmt) != SQLITE_DONE {
+                sqlite3_finalize(stmt)
+                execute("ROLLBACK;")
+                return
+            }
         }
 
         sqlite3_finalize(stmt)
