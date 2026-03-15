@@ -466,29 +466,26 @@
 
   // Nodes spread across full width. Each has a fixed direction (dl=blue or ul=green).
   // Hub is center. Outer nodes are distributed around it.
+  // Nodes with alternating dl/ul so colors are interleaved, not clumped
   var nodesDef = [
     { rx: 0.50, ry: 0.48, r: 7, hub: true },       // 0: Mac (center hub)
-    { rx: 0.08, ry: 0.22, r: 4.5, dir: 'dl' },     // 1
-    { rx: 0.18, ry: 0.72, r: 4,   dir: 'ul' },     // 2
-    { rx: 0.30, ry: 0.15, r: 4.5, dir: 'dl' },     // 3
-    { rx: 0.28, ry: 0.82, r: 4,   dir: 'ul' },     // 4
-    { rx: 0.42, ry: 0.12, r: 3.5, dir: 'dl' },     // 5
-    { rx: 0.40, ry: 0.85, r: 3.5, dir: 'ul' },     // 6
-    { rx: 0.60, ry: 0.10, r: 4,   dir: 'ul' },     // 7
-    { rx: 0.58, ry: 0.88, r: 4,   dir: 'dl' },     // 8
-    { rx: 0.72, ry: 0.18, r: 4.5, dir: 'dl' },     // 9
-    { rx: 0.70, ry: 0.78, r: 3.5, dir: 'ul' },     // 10
-    { rx: 0.85, ry: 0.30, r: 4,   dir: 'ul' },     // 11
-    { rx: 0.82, ry: 0.70, r: 4,   dir: 'dl' },     // 12
-    { rx: 0.93, ry: 0.50, r: 4.5, dir: 'dl' },     // 13
-    { rx: 0.15, ry: 0.45, r: 3.5, dir: 'dl' },     // 14
+    { rx: 0.08, ry: 0.25, r: 4.5, dir: 'dl' },     // 1: top-left
+    { rx: 0.20, ry: 0.70, r: 4,   dir: 'ul' },     // 2: bottom-left
+    { rx: 0.28, ry: 0.15, r: 4,   dir: 'ul' },     // 3: upper-left
+    { rx: 0.35, ry: 0.82, r: 4,   dir: 'dl' },     // 4: lower-left
+    { rx: 0.60, ry: 0.12, r: 4,   dir: 'dl' },     // 5: upper-right
+    { rx: 0.65, ry: 0.85, r: 4,   dir: 'ul' },     // 6: lower-right
+    { rx: 0.78, ry: 0.22, r: 4.5, dir: 'ul' },     // 7: top-right
+    { rx: 0.80, ry: 0.72, r: 4,   dir: 'dl' },     // 8: bottom-right
+    { rx: 0.93, ry: 0.45, r: 4.5, dir: 'dl' },     // 9: far-right
+    { rx: 0.12, ry: 0.48, r: 3.5, dir: 'ul' },     // 10: far-left
   ];
 
   // Each arm has a continuous stream of packets. We track per-arm packet phase offsets.
   var arms = [];
   for (var i = 1; i < nodesDef.length; i++) {
-    // Each arm gets 2-3 packets at staggered phases
-    var numPkts = 2 + Math.floor(Math.random() * 2);
+    // Each arm gets 1 packet
+    var numPkts = 1;
     var pkts = [];
     for (var p = 0; p < numPkts; p++) {
       pkts.push(p / numPkts); // evenly spaced initial phases
