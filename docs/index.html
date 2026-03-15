@@ -107,9 +107,9 @@
   .hero h1 em { font-weight: 400; font-style: italic; color: var(--text-muted); }
   .hero-desc { font-size: 20px; color: var(--text-muted); max-width: 520px; line-height: 1.6; margin-bottom: 44px; }
 
-  /* Network topology — 3D floating, no container */
+  /* Network topology — full width, no container */
   #topology-canvas {
-    width: 100%; max-width: 560px; height: 220px;
+    width: 100%; height: 320px;
     display: block;
   }
 
@@ -448,7 +448,7 @@
   btns.forEach(function(b) { b.addEventListener('click', function() { setTheme(this.dataset.theme); }); });
 })();
 
-// ---- 3D Network Topology (Canvas) ----
+// ---- Network Topology (Canvas) ----
 (function() {
   var canvas = document.getElementById('topology-canvas');
   var ctx = canvas.getContext('2d');
@@ -464,55 +464,42 @@
   resize();
   window.addEventListener('resize', resize);
 
-  // 3D nodes — positioned in 3D space, projected with perspective
-  var nodes3d = [
-    { x: 0,    y: 0,    z: 0,   r: 6, hub: true },
-    { x: -160, y: -50,  z: 40  },
-    { x: -100, y: 60,   z: -30 },
-    { x: 160,  y: -55,  z: 50  },
-    { x: 120,  y: 60,   z: -20 },
-    { x: -180, y: 30,   z: -50 },
-    { x: 180,  y: 20,   z: -40 },
-    { x: -60,  y: -70,  z: 60  },
-    { x: 80,   y: -40,  z: -60 },
-    { x: 0,    y: 70,   z: 50  },
-    { x: -120, y: -20,  z: -70 },
-    { x: 140,  y: -10,  z: 70  },
+  // Nodes spread across full width. Each has a fixed direction (dl=blue or ul=green).
+  // Hub is center. Outer nodes are distributed around it.
+  var nodesDef = [
+    { rx: 0.50, ry: 0.48, r: 7, hub: true },       // 0: Mac (center hub)
+    { rx: 0.08, ry: 0.22, r: 4.5, dir: 'dl' },     // 1
+    { rx: 0.18, ry: 0.72, r: 4,   dir: 'ul' },     // 2
+    { rx: 0.30, ry: 0.15, r: 4.5, dir: 'dl' },     // 3
+    { rx: 0.28, ry: 0.82, r: 4,   dir: 'ul' },     // 4
+    { rx: 0.42, ry: 0.12, r: 3.5, dir: 'dl' },     // 5
+    { rx: 0.40, ry: 0.85, r: 3.5, dir: 'ul' },     // 6
+    { rx: 0.60, ry: 0.10, r: 4,   dir: 'ul' },     // 7
+    { rx: 0.58, ry: 0.88, r: 4,   dir: 'dl' },     // 8
+    { rx: 0.72, ry: 0.18, r: 4.5, dir: 'dl' },     // 9
+    { rx: 0.70, ry: 0.78, r: 3.5, dir: 'ul' },     // 10
+    { rx: 0.85, ry: 0.30, r: 4,   dir: 'ul' },     // 11
+    { rx: 0.82, ry: 0.70, r: 4,   dir: 'dl' },     // 12
+    { rx: 0.93, ry: 0.50, r: 4.5, dir: 'dl' },     // 13
+    { rx: 0.15, ry: 0.45, r: 3.5, dir: 'dl' },     // 14
   ];
 
-  var rotY = 0;
-  var focalLength = 500;
-
-  // Packets in flight
-  var packets = [];
-
-  function project(x, y, z) {
-    // Rotate around Y axis
-    var cosR = Math.cos(rotY), sinR = Math.sin(rotY);
-    var rx = x * cosR - z * sinR;
-    var rz = x * sinR + z * cosR;
-    // Perspective
-    var scale = focalLength / (focalLength + rz + 100);
-    return {
-      sx: W / 2 + rx * scale,
-      sy: H / 2 + y * scale,
-      scale: scale,
-      z: rz
-    };
+  // Each arm has a continuous stream of packets. We track per-arm packet phase offsets.
+  var arms = [];
+  for (var i = 1; i < nodesDef.length; i++) {
+    // Each arm gets 2-3 packets at staggered phases
+    var numPkts = 2 + Math.floor(Math.random() * 2);
+    var pkts = [];
+    for (var p = 0; p < numPkts; p++) {
+      pkts.push(p / numPkts); // evenly spaced initial phases
+    }
+    arms.push({ nodeIdx: i, packets: pkts });
   }
 
-  function spawnPacket() {
-    var idx = 1 + Math.floor(Math.random() * (nodes3d.length - 1));
-    var isDl = Math.random() > 0.4;
-    packets.push({
-      from: isDl ? idx : 0,
-      to: isDl ? 0 : idx,
-      t: 0,
-      isDl: isDl
-    });
+  function getNodePos(def) {
+    return { x: def.rx * W, y: def.ry * H };
   }
 
-  // Get computed colors
   function getColors() {
     var style = getComputedStyle(document.documentElement);
     return {
@@ -523,70 +510,73 @@
     };
   }
 
-  var lastSpawn = 0;
-  var spawnInterval = 1200;
-
-  function frame(ts) {
-    rotY += 0.002;
+  function frame() {
     ctx.clearRect(0, 0, W, H);
-
     var colors = getColors();
-
-    // Project all nodes
-    var projected = nodes3d.map(function(n) {
-      var p = project(n.x, n.y, n.z);
-      p.r = (n.r || 4) * p.scale;
-      return p;
-    });
+    var hub = getNodePos(nodesDef[0]);
 
     // Draw edges
     ctx.lineWidth = 1;
-    for (var i = 1; i < projected.length; i++) {
+    ctx.strokeStyle = colors.edge;
+    for (var i = 1; i < nodesDef.length; i++) {
+      var np = getNodePos(nodesDef[i]);
       ctx.beginPath();
-      ctx.moveTo(projected[0].sx, projected[0].sy);
-      ctx.lineTo(projected[i].sx, projected[i].sy);
-      ctx.strokeStyle = colors.edge;
+      ctx.moveTo(hub.x, hub.y);
+      ctx.lineTo(np.x, np.y);
       ctx.stroke();
     }
 
-    // Draw nodes (sorted by z for depth)
-    var sorted = projected.map(function(p, i) { return { p: p, i: i }; });
-    sorted.sort(function(a, b) { return a.p.z - b.p.z; });
+    // Draw packets on every arm
+    var speed = 0.0012; // very slow
+    for (var a = 0; a < arms.length; a++) {
+      var arm = arms[a];
+      var def = nodesDef[arm.nodeIdx];
+      var np = getNodePos(def);
+      var isDl = def.dir === 'dl';
+      var pktColor = isDl ? colors.dl : colors.ul;
 
-    sorted.forEach(function(item) {
-      var p = item.p;
-      ctx.beginPath();
-      ctx.arc(p.sx, p.sy, Math.max(p.r, 1.5), 0, Math.PI * 2);
-      ctx.fillStyle = colors.node;
-      ctx.fill();
-    });
+      for (var j = 0; j < arm.packets.length; j++) {
+        arm.packets[j] += speed;
+        if (arm.packets[j] >= 1) arm.packets[j] -= 1;
 
-    // Update and draw packets
-    if (ts - lastSpawn > spawnInterval) {
-      spawnPacket();
-      lastSpawn = ts;
-      spawnInterval = 1000 + Math.random() * 800;
+        var t = arm.packets[j];
+        // Download: outer node -> hub. Upload: hub -> outer node.
+        var sx, sy, ex, ey;
+        if (isDl) {
+          sx = np.x; sy = np.y; ex = hub.x; ey = hub.y;
+        } else {
+          sx = hub.x; sy = hub.y; ex = np.x; ey = np.y;
+        }
+
+        var px = sx + (ex - sx) * t;
+        var py = sy + (ey - sy) * t;
+
+        // Fade in/out at endpoints
+        var alpha = t < 0.08 ? t / 0.08 : t > 0.92 ? (1 - t) / 0.08 : 1;
+        ctx.globalAlpha = alpha * 0.85;
+        ctx.beginPath();
+        ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = pktColor;
+        ctx.fill();
+      }
     }
+    ctx.globalAlpha = 1;
 
-    for (var j = packets.length - 1; j >= 0; j--) {
-      var pkt = packets[j];
-      pkt.t += 0.004;
-      if (pkt.t >= 1) { packets.splice(j, 1); continue; }
+    // Draw nodes on top
+    // Hub node — neutral color
+    ctx.beginPath();
+    ctx.arc(hub.x, hub.y, nodesDef[0].r, 0, Math.PI * 2);
+    ctx.fillStyle = colors.node;
+    ctx.fill();
 
-      var ease = pkt.t < 0.5 ? 2 * pkt.t * pkt.t : 1 - Math.pow(-2 * pkt.t + 2, 2) / 2;
-      var fromN = nodes3d[pkt.from], toN = nodes3d[pkt.to];
-      var mx = fromN.x + (toN.x - fromN.x) * ease;
-      var my = fromN.y + (toN.y - fromN.y) * ease;
-      var mz = fromN.z + (toN.z - fromN.z) * ease;
-      var pp = project(mx, my, mz);
-
-      var alpha = pkt.t < 0.1 ? pkt.t * 10 : pkt.t > 0.85 ? (1 - pkt.t) * 6.67 : 1;
-      ctx.globalAlpha = alpha * 0.8;
+    // Outer nodes — colored by direction
+    for (var i = 1; i < nodesDef.length; i++) {
+      var def = nodesDef[i];
+      var np = getNodePos(def);
       ctx.beginPath();
-      ctx.arc(pp.sx, pp.sy, 3 * pp.scale, 0, Math.PI * 2);
-      ctx.fillStyle = pkt.isDl ? colors.dl : colors.ul;
+      ctx.arc(np.x, np.y, def.r, 0, Math.PI * 2);
+      ctx.fillStyle = def.dir === 'dl' ? colors.dl : colors.ul;
       ctx.fill();
-      ctx.globalAlpha = 1;
     }
 
     requestAnimationFrame(frame);
