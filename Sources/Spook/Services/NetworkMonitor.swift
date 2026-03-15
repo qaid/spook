@@ -1,5 +1,11 @@
 import Foundation
 
+struct SpeedSample {
+    let timestamp: Date
+    let bytesIn: Int64
+    let bytesOut: Int64
+}
+
 @Observable
 @MainActor
 class NetworkMonitor {
@@ -8,6 +14,10 @@ class NetworkMonitor {
     var totalBytesIn: Int64 = 0
     var totalBytesOut: Int64 = 0
     var appTraffic: [AppTraffic] = []
+
+    /// Ring buffer of per-second speed readings for the last hour
+    private(set) var recentSamples: [SpeedSample] = []
+    private static let maxRecentSamples = 3600  // 1 hour of per-second data
 
     var onUpdate: ((Int64, Int64) -> Void)?
 
@@ -79,6 +89,12 @@ class NetworkMonitor {
 
         previousBytesIn = stats.bytesIn
         previousBytesOut = stats.bytesOut
+
+        // Record to in-memory ring buffer for 1-hour graph
+        recentSamples.append(SpeedSample(timestamp: Date(), bytesIn: downloadSpeed, bytesOut: uploadSpeed))
+        if recentSamples.count > Self.maxRecentSamples {
+            recentSamples.removeFirst(recentSamples.count - Self.maxRecentSamples)
+        }
 
         // Record to history
         if downloadSpeed > 0 || uploadSpeed > 0 {

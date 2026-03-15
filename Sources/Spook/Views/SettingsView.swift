@@ -5,6 +5,7 @@ struct SettingsView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("refreshInterval") private var refreshInterval = 1.0
     @AppStorage("showInDock") private var showInDock = false
+    @State private var showClearConfirmation = false
 
     var body: some View {
         Form {
@@ -42,9 +43,7 @@ struct SettingsView: View {
                 }
 
                 Button("Clear All History") {
-                    Task {
-                        await HistoryStore.shared.clearAllHistory()
-                    }
+                    showClearConfirmation = true
                 }
                 .foregroundColor(.red)
             } header: {
@@ -66,6 +65,16 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 400, height: 350)
+        .confirmationDialog("Clear all traffic history?", isPresented: $showClearConfirmation) {
+            Button("Clear All History", role: .destructive) {
+                Task {
+                    await HistoryStore.shared.clearAllHistory()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently delete all recorded traffic data. This action cannot be undone.")
+        }
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
