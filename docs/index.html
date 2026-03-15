@@ -16,8 +16,9 @@
     --cta-color: #aaa; --cta-hover: #f0f0f0; --cta-border: #444; --cta-border-hover: #777;
     --link-color: #888; --link-hover: #ccc; --link-border: #444; --link-border-hover: #777;
     --dl-color: #4e7fff; --ul-color: #34c759;
-    --node-color: rgba(255,255,255,0.5); --edge-color: rgba(255,255,255,0.08);
-    --pulse-dl: rgba(78,127,255,0.6); --pulse-ul: rgba(52,199,89,0.6);
+    --screenshot-border: #1a1a1a; --img-shadow: none;
+    --node-color: rgba(255,255,255,0.35); --edge-color: rgba(255,255,255,0.06);
+    --pulse-dl: rgba(78,127,255,0.7); --pulse-ul: rgba(52,199,89,0.7);
     color-scheme: dark;
   }
 
@@ -29,8 +30,9 @@
     --scanline: rgba(0,0,0,0.006); --note-num: #e8e6e0;
     --cta-color: #555; --cta-hover: #111; --cta-border: #bbb; --cta-border-hover: #666;
     --link-color: #666; --link-hover: #222; --link-border: #bbb; --link-border-hover: #666;
-    --node-color: rgba(0,0,0,0.35); --edge-color: rgba(0,0,0,0.06);
-    --pulse-dl: rgba(78,127,255,0.5); --pulse-ul: rgba(52,199,89,0.5);
+    --screenshot-border: #ddd; --img-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    --node-color: rgba(0,0,0,0.25); --edge-color: rgba(0,0,0,0.05);
+    --pulse-dl: rgba(78,127,255,0.6); --pulse-ul: rgba(52,199,89,0.6);
     color-scheme: light;
   }
 
@@ -43,8 +45,9 @@
       --scanline: rgba(0,0,0,0.006); --note-num: #e8e6e0;
       --cta-color: #555; --cta-hover: #111; --cta-border: #bbb; --cta-border-hover: #666;
       --link-color: #666; --link-hover: #222; --link-border: #bbb; --link-border-hover: #666;
-      --node-color: rgba(0,0,0,0.35); --edge-color: rgba(0,0,0,0.06);
-      --pulse-dl: rgba(78,127,255,0.5); --pulse-ul: rgba(52,199,89,0.5);
+      --screenshot-border: #ddd; --img-shadow: 0 2px 16px rgba(0,0,0,0.08);
+      --node-color: rgba(0,0,0,0.25); --edge-color: rgba(0,0,0,0.05);
+      --pulse-dl: rgba(78,127,255,0.6); --pulse-ul: rgba(52,199,89,0.6);
       color-scheme: light;
     }
   }
@@ -93,7 +96,9 @@
   .divider { border: none; border-top: 1px solid var(--border); margin: 0; transition: border-color 0.3s; }
 
   /* HERO */
-  .hero { padding-top: 100px; padding-bottom: 40px; }
+  .hero {
+    padding-top: 100px; padding-bottom: 80px;
+  }
   .hero-overline { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 20px; }
   .hero h1 {
     font-family: Georgia, 'Times New Roman', serif; font-size: clamp(52px, 9vw, 112px);
@@ -102,13 +107,11 @@
   .hero h1 em { font-weight: 400; font-style: italic; color: var(--text-muted); }
   .hero-desc { font-size: 20px; color: var(--text-muted); max-width: 520px; line-height: 1.6; margin-bottom: 44px; }
 
-  /* Network topology widget */
-  .topology-widget {
-    position: relative; width: 100%; max-width: 600px; height: 200px;
-    border: 1px solid var(--border); border-radius: 12px;
-    background: var(--code-bg); overflow: hidden; transition: background 0.3s, border-color 0.3s;
+  /* Network topology — 3D floating, no container */
+  #topology-canvas {
+    width: 100%; max-width: 560px; height: 220px;
+    display: block;
   }
-  .topology-widget svg { width: 100%; height: 100%; }
 
   /* TRACKLIST */
   .tracklist { padding: 72px 0; }
@@ -120,22 +123,37 @@
   .track-desc { font-size: 17px; color: var(--text-muted); line-height: 1.55; }
   .track-duration { margin-left: auto; font-size: 16px; color: var(--text-ghost); font-variant-numeric: tabular-nums; flex-shrink: 0; padding-left: 16px; }
 
-  /* APP SCREENSHOTS */
-  .app-section { padding: 72px 0; }
-  .app-header { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 36px; }
-  .app-grid {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px;
-    align-items: start;
+  /* SCREENSHOTS */
+  .screenshots { padding: 72px 0; }
+  .screenshots-header { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 36px; }
+  .screenshots-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 24px; align-items: start;
   }
-  .app-screenshot-card { display: flex; flex-direction: column; gap: 10px; }
-  .app-screenshot-card img {
-    width: 100%; height: 280px; object-fit: cover; object-position: top;
-    border-radius: 8px; border: 1px solid var(--border);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2); transition: border-color 0.3s;
+  .screenshot { position: relative; cursor: pointer; }
+  .screenshot img {
+    width: 100%; aspect-ratio: 4 / 3; object-fit: contain; object-position: bottom;
+    border-radius: 8px; border: none; display: block;
   }
-  .app-screenshot-card span {
-    font-size: 14px; color: var(--text-faint); letter-spacing: 0.02em;
+  .screenshot-caption {
+    display: block; margin-top: 10px; font-size: 14px; color: var(--text-faint);
   }
+
+  /* LIGHTBOX */
+  .lightbox {
+    position: fixed; inset: 0; z-index: 2000;
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+    background: rgba(0, 0, 0, 0.85);
+    opacity: 0; visibility: hidden; transition: opacity 0.25s, visibility 0.25s;
+    cursor: pointer;
+  }
+  .lightbox.open { opacity: 1; visibility: visible; }
+  .lightbox img {
+    max-width: 80vw; max-height: 80vh; border-radius: 10px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+    transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .lightbox.open img { transform: scale(1); }
+  .lightbox-caption { font-size: 16px; color: var(--text-secondary); text-align: center; }
 
   /* LINER NOTES */
   .liner-notes { padding: 72px 0; }
@@ -178,6 +196,11 @@
     max-width: 960px; margin: 0 auto; transition: border-color 0.3s;
   }
   .footer-name { font-size: 14px; font-weight: 600; color: var(--text-faint); }
+  .footer-name a {
+    color: var(--link-color); text-decoration: none; border-bottom: 1px solid var(--link-border);
+    padding-bottom: 1px; transition: all 0.2s;
+  }
+  .footer-name a:hover { color: var(--link-hover); border-color: var(--link-border-hover); }
   .footer-right { font-size: 14px; color: var(--text-ghost); display: flex; gap: 16px; }
   .footer-right a { color: var(--text-faint); text-decoration: none; transition: color 0.2s; }
   .footer-right a:hover { color: var(--text-secondary); }
@@ -196,15 +219,12 @@
     .track { flex-wrap: wrap; gap: 4px 16px; }
     .track-title { min-width: unset; }
     .track-duration { margin-left: 48px; }
-    .app-grid { grid-template-columns: repeat(2, 1fr); }
-    .app-screenshot-card img { height: 220px; }
+    .screenshots-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
   }
   @media (max-width: 480px) {
     .hero h1 { font-size: 44px; }
     .track-title { font-size: 19px; }
     .privacy-grid { grid-template-columns: 1fr 1fr; }
-    .app-grid { grid-template-columns: 1fr; }
-    .app-screenshot-card img { height: 260px; }
     footer { flex-direction: column; gap: 8px; text-align: center; }
   }
 </style>
@@ -227,55 +247,94 @@
   <div class="hero-overline reveal">macOS Network Monitor &mdash; Open Source</div>
   <h1 class="reveal reveal-d1">Spook</h1>
   <p class="hero-desc reveal reveal-d2">See what's talking on your Mac. Real-time traffic monitoring from your menu bar. Per-app breakdown, connection details, and history graphs.</p>
-  <div class="topology-widget reveal reveal-d3" id="topology">
-    <svg id="topology-svg" viewBox="0 0 600 200" preserveAspectRatio="xMidYMid meet"></svg>
-  </div>
+  <canvas id="topology-canvas" class="reveal reveal-d3"></canvas>
 </section>
 
 <hr class="divider container">
 
+<!-- FEATURES -->
 <section class="tracklist container">
   <div class="tracklist-header reveal">Features</div>
 
-  <div class="track reveal"><span class="track-num">A1</span><span class="track-title">Menu Bar Traffic</span><span class="track-desc">Live &#8595;/&#8593; speeds updating every second right in your menu bar.</span><span class="track-duration">1s</span></div>
-  <div class="track reveal reveal-d1"><span class="track-num">A2</span><span class="track-title">Per-App Breakdown</span><span class="track-desc">See exactly which apps are using your network and how much.</span><span class="track-duration">All</span></div>
-  <div class="track reveal reveal-d2"><span class="track-num">B1</span><span class="track-title">Connection Details</span><span class="track-desc">Remote IPs, ports, protocols, and reverse DNS hostnames for every connection.</span><span class="track-duration">DNS</span></div>
-  <div class="track reveal reveal-d3"><span class="track-num">B2</span><span class="track-title">Traffic Graphs</span><span class="track-desc">Visualize network usage over 1 hour, 24 hours, or 7 days with dynamic time labels.</span><span class="track-duration">7d</span></div>
-  <div class="track reveal"><span class="track-num">C1</span><span class="track-title">Direction Filter</span><span class="track-desc">Toggle to focus on download-only or upload-only traffic.</span><span class="track-duration">&#8595;&#8593;</span></div>
-  <div class="track reveal reveal-d1"><span class="track-num">C2</span><span class="track-title">Search &amp; Freeze</span><span class="track-desc">Find apps instantly with live search, freeze the list while inspecting rapidly changing entries.</span><span class="track-duration">&#9889;</span></div>
-  <div class="track reveal reveal-d2"><span class="track-num">C3</span><span class="track-title">Pin Mode</span><span class="track-desc">Keep the detail window visible while you work. Appears in Cmd+Tab when pinned.</span><span class="track-duration">&#128204;</span></div>
+  <div class="track reveal">
+    <span class="track-num">A1</span>
+    <span class="track-title">Menu Bar Traffic</span>
+    <span class="track-desc">Live &#8595;/&#8593; speeds updating every second right in your menu bar.</span>
+    <span class="track-duration">1s</span>
+  </div>
+
+  <div class="track reveal reveal-d1">
+    <span class="track-num">A2</span>
+    <span class="track-title">Per-App Breakdown</span>
+    <span class="track-desc">See exactly which apps are using your network and how much.</span>
+    <span class="track-duration">All</span>
+  </div>
+
+  <div class="track reveal reveal-d2">
+    <span class="track-num">B1</span>
+    <span class="track-title">Connection Details</span>
+    <span class="track-desc">Remote IPs, ports, protocols, and reverse DNS hostnames for every connection.</span>
+    <span class="track-duration">DNS</span>
+  </div>
+
+  <div class="track reveal reveal-d3">
+    <span class="track-num">B2</span>
+    <span class="track-title">Traffic Graphs</span>
+    <span class="track-desc">Visualize network usage over 1 hour, 24 hours, or 7 days with dynamic time labels.</span>
+    <span class="track-duration">7d</span>
+  </div>
+
+  <div class="track reveal">
+    <span class="track-num">C1</span>
+    <span class="track-title">Direction Filter</span>
+    <span class="track-desc">Toggle to focus on download-only or upload-only traffic.</span>
+    <span class="track-duration">&#8595;&#8593;</span>
+  </div>
+
+  <div class="track reveal reveal-d1">
+    <span class="track-num">C2</span>
+    <span class="track-title">Search &amp; Freeze</span>
+    <span class="track-desc">Find apps instantly with live search, freeze the list while inspecting rapidly changing entries.</span>
+    <span class="track-duration">&#9889;</span>
+  </div>
+
+  <div class="track reveal reveal-d2">
+    <span class="track-num">C3</span>
+    <span class="track-title">Pin Mode</span>
+    <span class="track-desc">Keep the detail window visible while you work. Appears in Cmd+Tab when pinned.</span>
+    <span class="track-duration">&#128204;</span>
+  </div>
 </section>
 
 <hr class="divider container">
 
-<section class="app-section container">
-  <div class="app-header reveal">App</div>
-  <div class="app-grid">
-    <div class="app-screenshot-card reveal">
-      <img src="images/app-overview.png" alt="Spook app panel showing speed stats, traffic history, and per-app list">
-      <span>Overview panel</span>
+<!-- APP SCREENSHOTS -->
+<section class="screenshots container">
+  <div class="screenshots-header reveal">The App</div>
+
+  <div class="screenshots-grid">
+    <div class="screenshot reveal">
+      <img src="images/app-overview.png" alt="Spook app panel showing speed stats, traffic history, and per-app list" loading="lazy">
+      <span class="screenshot-caption">Overview panel</span>
     </div>
-    <div class="app-screenshot-card reveal reveal-d1">
-      <img src="images/speed-overview.png" alt="Speed overview showing download and upload rates">
-      <span>Speed readout</span>
+    <div class="screenshot reveal reveal-d1">
+      <img src="images/speed-overview.png" alt="Speed overview showing download and upload rates" loading="lazy">
+      <span class="screenshot-caption">Speed readout</span>
     </div>
-    <div class="app-screenshot-card reveal reveal-d2">
-      <img src="images/app-list.png" alt="Per-app traffic breakdown list">
-      <span>App breakdown</span>
+    <div class="screenshot reveal reveal-d2">
+      <img src="images/app-list.png" alt="Per-app traffic breakdown list" loading="lazy">
+      <span class="screenshot-caption">App breakdown</span>
     </div>
-    <div class="app-screenshot-card reveal reveal-d3">
-      <img src="images/traffic-history.png" alt="Traffic history graph">
-      <span>Traffic history</span>
-    </div>
-    <div class="app-screenshot-card reveal reveal-d4">
-      <img src="images/menu-bar.png" alt="Menu bar status item showing speeds">
-      <span>Menu bar item</span>
+    <div class="screenshot reveal reveal-d3">
+      <img src="images/traffic-history.png" alt="Traffic history graph" loading="lazy">
+      <span class="screenshot-caption">Traffic history</span>
     </div>
   </div>
 </section>
 
 <hr class="divider container">
 
+<!-- HOW IT WORKS -->
 <section class="liner-notes container">
   <div class="liner-notes-header reveal">How It Works</div>
   <div class="notes-grid">
@@ -334,15 +393,47 @@
 <hr class="divider container">
 
 <footer>
-  <span class="footer-name">Spook: a project by constellation design</span>
+  <span class="footer-name">Spook: a project by <a href="https://constellation.design">constellation design</a></span>
   <div class="footer-right">
     <a href="https://github.com/qaid/spook">GitHub</a>
     <span>MIT License</span>
   </div>
 </footer>
 
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox">
+  <img id="lightbox-img" src="" alt="">
+  <div class="lightbox-caption" id="lightbox-caption"></div>
+</div>
+
 <script>
-// Theme switcher
+// ---- Lightbox ----
+(function() {
+  var lb = document.getElementById('lightbox');
+  var lbImg = document.getElementById('lightbox-img');
+  var lbCap = document.getElementById('lightbox-caption');
+
+  document.querySelectorAll('.screenshot').forEach(function(el) {
+    el.addEventListener('click', function() {
+      var img = this.querySelector('img');
+      var cap = this.querySelector('.screenshot-caption');
+      lbImg.src = img.src;
+      lbImg.alt = img.alt;
+      lbCap.textContent = cap ? cap.textContent : '';
+      lb.classList.add('open');
+    });
+  });
+
+  lb.addEventListener('click', function() {
+    lb.classList.remove('open');
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') lb.classList.remove('open');
+  });
+})();
+
+// ---- Theme switcher ----
 (function() {
   var btns = document.querySelectorAll('.theme-btn');
   var html = document.documentElement;
@@ -356,110 +447,153 @@
   btns.forEach(function(b) { b.addEventListener('click', function() { setTheme(this.dataset.theme); }); });
 })();
 
-// Animated network topology
+// ---- 3D Network Topology (Canvas) ----
 (function() {
-  var svg = document.getElementById('topology-svg');
-  var ns = 'http://www.w3.org/2000/svg';
+  var canvas = document.getElementById('topology-canvas');
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var W, H;
 
-  // Node positions — central hub + surrounding app nodes
-  var nodes = [
-    { x: 300, y: 100, r: 8, label: 'Mac', hub: true },
-    { x: 80,  y: 50,  r: 5, label: 'Safari' },
-    { x: 160, y: 160, r: 5, label: 'Slack' },
-    { x: 520, y: 45,  r: 5, label: 'cloudd' },
-    { x: 440, y: 155, r: 5, label: 'Mail' },
-    { x: 80,  y: 140, r: 4, label: 'DNS' },
-    { x: 520, y: 130, r: 4, label: 'Xcode' },
-    { x: 200, y: 40,  r: 4, label: 'curl' },
-    { x: 400, y: 50,  r: 4, label: 'ssh' },
-    { x: 300, y: 175, r: 4, label: 'brew' },
-    { x: 160, y: 90,  r: 3, label: '' },
-    { x: 440, y: 90,  r: 3, label: '' },
+  function resize() {
+    var rect = canvas.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // 3D nodes — positioned in 3D space, projected with perspective
+  var nodes3d = [
+    { x: 0,    y: 0,    z: 0,   r: 6, hub: true },
+    { x: -160, y: -50,  z: 40  },
+    { x: -100, y: 60,   z: -30 },
+    { x: 160,  y: -55,  z: 50  },
+    { x: 120,  y: 60,   z: -20 },
+    { x: -180, y: 30,   z: -50 },
+    { x: 180,  y: 20,   z: -40 },
+    { x: -60,  y: -70,  z: 60  },
+    { x: 80,   y: -40,  z: -60 },
+    { x: 0,    y: 70,   z: 50  },
+    { x: -120, y: -20,  z: -70 },
+    { x: 140,  y: -10,  z: 70  },
   ];
 
-  // Draw edges
-  var edgeGroup = document.createElementNS(ns, 'g');
-  var edges = [];
-  for (var i = 1; i < nodes.length; i++) {
-    var line = document.createElementNS(ns, 'line');
-    line.setAttribute('x1', nodes[0].x);
-    line.setAttribute('y1', nodes[0].y);
-    line.setAttribute('x2', nodes[i].x);
-    line.setAttribute('y2', nodes[i].y);
-    line.setAttribute('stroke', 'var(--edge-color)');
-    line.setAttribute('stroke-width', '1');
-    edgeGroup.appendChild(line);
-    edges.push({ el: line, node: nodes[i] });
+  var rotY = 0;
+  var focalLength = 500;
+
+  // Packets in flight
+  var packets = [];
+
+  function project(x, y, z) {
+    // Rotate around Y axis
+    var cosR = Math.cos(rotY), sinR = Math.sin(rotY);
+    var rx = x * cosR - z * sinR;
+    var rz = x * sinR + z * cosR;
+    // Perspective
+    var scale = focalLength / (focalLength + rz + 100);
+    return {
+      sx: W / 2 + rx * scale,
+      sy: H / 2 + y * scale,
+      scale: scale,
+      z: rz
+    };
   }
-  svg.appendChild(edgeGroup);
 
-  // Draw nodes
-  var nodeGroup = document.createElementNS(ns, 'g');
-  nodes.forEach(function(n) {
-    var c = document.createElementNS(ns, 'circle');
-    c.setAttribute('cx', n.x);
-    c.setAttribute('cy', n.y);
-    c.setAttribute('r', n.r);
-    c.setAttribute('fill', 'var(--node-color)');
-    n.el = c;
-    nodeGroup.appendChild(c);
-
-    if (n.label) {
-      var t = document.createElementNS(ns, 'text');
-      t.setAttribute('x', n.x);
-      t.setAttribute('y', n.y + n.r + 14);
-      t.setAttribute('text-anchor', 'middle');
-      t.setAttribute('fill', 'var(--text-faint)');
-      t.setAttribute('font-size', '10');
-      t.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, sans-serif');
-      t.textContent = n.label;
-      nodeGroup.appendChild(t);
-    }
-  });
-  svg.appendChild(nodeGroup);
-
-  // Pulse animation — packets traveling along edges
-  function sendPulse() {
-    var idx = Math.floor(Math.random() * edges.length);
-    var edge = edges[idx];
+  function spawnPacket() {
+    var idx = 1 + Math.floor(Math.random() * (nodes3d.length - 1));
     var isDl = Math.random() > 0.4;
-
-    var circle = document.createElementNS(ns, 'circle');
-    circle.setAttribute('r', '3');
-    circle.setAttribute('fill', isDl ? 'var(--pulse-dl)' : 'var(--pulse-ul)');
-    circle.setAttribute('opacity', '0.9');
-    svg.appendChild(circle);
-
-    var sx, sy, ex, ey;
-    if (isDl) {
-      sx = edge.node.x; sy = edge.node.y;
-      ex = nodes[0].x; ey = nodes[0].y;
-    } else {
-      sx = nodes[0].x; sy = nodes[0].y;
-      ex = edge.node.x; ey = edge.node.y;
-    }
-
-    var start = null;
-    var duration = 800 + Math.random() * 600;
-    function animate(ts) {
-      if (!start) start = ts;
-      var p = Math.min((ts - start) / duration, 1);
-      var ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-      circle.setAttribute('cx', sx + (ex - sx) * ease);
-      circle.setAttribute('cy', sy + (ey - sy) * ease);
-      circle.setAttribute('opacity', p < 0.1 ? p * 9 : p > 0.85 ? (1 - p) * 6.67 : 0.9);
-      if (p < 1) requestAnimationFrame(animate);
-      else svg.removeChild(circle);
-    }
-    requestAnimationFrame(animate);
+    packets.push({
+      from: isDl ? idx : 0,
+      to: isDl ? 0 : idx,
+      t: 0,
+      isDl: isDl
+    });
   }
 
-  // Stagger pulses
-  setInterval(sendPulse, 400);
-  setTimeout(function() { setInterval(sendPulse, 600); }, 200);
+  // Get computed colors
+  function getColors() {
+    var style = getComputedStyle(document.documentElement);
+    return {
+      node: style.getPropertyValue('--node-color').trim(),
+      edge: style.getPropertyValue('--edge-color').trim(),
+      dl: style.getPropertyValue('--pulse-dl').trim(),
+      ul: style.getPropertyValue('--pulse-ul').trim()
+    };
+  }
+
+  var lastSpawn = 0;
+  var spawnInterval = 1200;
+
+  function frame(ts) {
+    rotY += 0.002;
+    ctx.clearRect(0, 0, W, H);
+
+    var colors = getColors();
+
+    // Project all nodes
+    var projected = nodes3d.map(function(n) {
+      var p = project(n.x, n.y, n.z);
+      p.r = (n.r || 4) * p.scale;
+      return p;
+    });
+
+    // Draw edges
+    ctx.lineWidth = 1;
+    for (var i = 1; i < projected.length; i++) {
+      ctx.beginPath();
+      ctx.moveTo(projected[0].sx, projected[0].sy);
+      ctx.lineTo(projected[i].sx, projected[i].sy);
+      ctx.strokeStyle = colors.edge;
+      ctx.stroke();
+    }
+
+    // Draw nodes (sorted by z for depth)
+    var sorted = projected.map(function(p, i) { return { p: p, i: i }; });
+    sorted.sort(function(a, b) { return a.p.z - b.p.z; });
+
+    sorted.forEach(function(item) {
+      var p = item.p;
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, Math.max(p.r, 1.5), 0, Math.PI * 2);
+      ctx.fillStyle = colors.node;
+      ctx.fill();
+    });
+
+    // Update and draw packets
+    if (ts - lastSpawn > spawnInterval) {
+      spawnPacket();
+      lastSpawn = ts;
+      spawnInterval = 1000 + Math.random() * 800;
+    }
+
+    for (var j = packets.length - 1; j >= 0; j--) {
+      var pkt = packets[j];
+      pkt.t += 0.004;
+      if (pkt.t >= 1) { packets.splice(j, 1); continue; }
+
+      var ease = pkt.t < 0.5 ? 2 * pkt.t * pkt.t : 1 - Math.pow(-2 * pkt.t + 2, 2) / 2;
+      var fromN = nodes3d[pkt.from], toN = nodes3d[pkt.to];
+      var mx = fromN.x + (toN.x - fromN.x) * ease;
+      var my = fromN.y + (toN.y - fromN.y) * ease;
+      var mz = fromN.z + (toN.z - fromN.z) * ease;
+      var pp = project(mx, my, mz);
+
+      var alpha = pkt.t < 0.1 ? pkt.t * 10 : pkt.t > 0.85 ? (1 - pkt.t) * 6.67 : 1;
+      ctx.globalAlpha = alpha * 0.8;
+      ctx.beginPath();
+      ctx.arc(pp.sx, pp.sy, 3 * pp.scale, 0, Math.PI * 2);
+      ctx.fillStyle = pkt.isDl ? colors.dl : colors.ul;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 })();
 
-// Scroll reveal
+// ---- Scroll reveal ----
 (function() {
   var els = document.querySelectorAll('.reveal');
   var obs = new IntersectionObserver(function(entries) {
