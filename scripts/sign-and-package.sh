@@ -6,7 +6,7 @@ BUNDLE_ID="com.spook.app"
 APP_PATH="$HOME/Applications/$APP_NAME.app"
 DMG_PATH="$HOME/Applications/$APP_NAME.dmg"
 ENTITLEMENTS="Resources/Spook.entitlements"
-SIGNING_IDENTITY="Developer ID Application: Qaid Jacobs (NC9DMTN36B)"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:?Must set SIGNING_IDENTITY (e.g. 'Developer ID Application: Name (TEAM_ID)')}"
 NOTARY_PROFILE="spook-notary"
 
 # --- Build ---

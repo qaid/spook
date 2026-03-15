@@ -91,6 +91,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
+          set -e
           xcrun notarytool submit "$DMG_PATH" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
