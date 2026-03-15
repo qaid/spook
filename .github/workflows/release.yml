@@ -9,6 +9,9 @@ env:
   APP_NAME: Spook
   BUNDLE_ID: com.spook.app
 
+permissions:
+  contents: write
+
 jobs:
   build-sign-release:
     runs-on: macos-14
