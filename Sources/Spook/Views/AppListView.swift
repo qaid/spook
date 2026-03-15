@@ -29,6 +29,7 @@ struct AppListView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
     }
 }
 

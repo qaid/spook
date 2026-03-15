@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spook — macOS Network Traffic Monitor</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0d0d0d; --text: #f0f0f0; --text-secondary: #aaa; --text-muted: #888;
+    --text-faint: #666; --text-ghost: #4a4a4a; --border: #1a1a1a; --border-subtle: #151515;
+    --nav-bg: rgba(13,13,13,0.85); --code-bg: #111; --code-text: #888; --code-dim: #383838;
+    --kbd-bg: rgba(255,255,255,0.06); --kbd-border: rgba(255,255,255,0.1);
+    --scanline: rgba(255,255,255,0.007); --note-num: #222;
+    --cta-color: #aaa; --cta-hover: #f0f0f0; --cta-border: #444; --cta-border-hover: #777;
+    --link-color: #888; --link-hover: #ccc; --link-border: #444; --link-border-hover: #777;
+    --dl-color: #4e7fff; --ul-color: #34c759;
+    color-scheme: dark;
+  }
+
+  [data-theme="light"] {
+    --bg: #f5f4f0; --text: #1a1a18; --text-secondary: #555; --text-muted: #777;
+    --text-faint: #999; --text-ghost: #bbb; --border: #ddd; --border-subtle: #e4e4e0;
+    --nav-bg: rgba(245,244,240,0.88); --code-bg: #eae8e3; --code-text: #555; --code-dim: #bbb;
+    --kbd-bg: rgba(0,0,0,0.05); --kbd-border: rgba(0,0,0,0.12);
+    --scanline: rgba(0,0,0,0.006); --note-num: #e8e6e0;
+    --cta-color: #555; --cta-hover: #111; --cta-border: #bbb; --cta-border-hover: #666;
+    --link-color: #666; --link-hover: #222; --link-border: #bbb; --link-border-hover: #666;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: light) {
+    html:not([data-theme]) {
+      --bg: #f5f4f0; --text: #1a1a18; --text-secondary: #555; --text-muted: #777;
+      --text-faint: #999; --text-ghost: #bbb; --border: #ddd; --border-subtle: #e4e4e0;
+      --nav-bg: rgba(245,244,240,0.88); --code-bg: #eae8e3; --code-text: #555; --code-dim: #bbb;
+      --kbd-bg: rgba(0,0,0,0.05); --kbd-border: rgba(0,0,0,0.12);
+      --scanline: rgba(0,0,0,0.006); --note-num: #e8e6e0;
+      --cta-color: #555; --cta-hover: #111; --cta-border: #bbb; --cta-border-hover: #666;
+      --link-color: #666; --link-hover: #222; --link-border: #bbb; --link-border-hover: #666;
+      color-scheme: light;
+    }
+  }
+
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    transition: background 0.3s, color 0.3s;
+  }
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 999;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--scanline) 2px, var(--scanline) 3px);
+  }
+  a { color: inherit; }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 clamp(24px, 5vw, 60px); height: 56px;
+    background: var(--nav-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border); transition: background 0.3s, border-color 0.3s;
+  }
+  .nav-name { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: var(--text-secondary); text-decoration: none; }
+  .nav-right { display: flex; align-items: center; gap: 16px; }
+  .nav-link { font-size: 14px; color: var(--text-muted); text-decoration: none; letter-spacing: 0.04em; transition: color 0.2s; }
+  .nav-link:hover { color: var(--text-secondary); }
+
+  .theme-switcher {
+    display: flex; align-items: center; gap: 2px;
+    background: var(--kbd-bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px;
+  }
+  .theme-btn {
+    display: flex; align-items: center; justify-content: center; width: 26px; height: 24px;
+    border: none; border-radius: 4px; background: transparent; color: var(--text-faint);
+    cursor: pointer; font-size: 14px; transition: all 0.2s; padding: 0;
+  }
+  .theme-btn:hover { color: var(--text-secondary); }
+  .theme-btn.active { background: var(--border); color: var(--text); }
+  .theme-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* LAYOUT */
+  .container { max-width: 960px; margin: 0 auto; padding: 0 clamp(24px, 5vw, 60px); }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 0; transition: border-color 0.3s; }
+
+  /* HERO */
+  .hero { padding-top: 100px; padding-bottom: 80px; }
+  .hero-overline { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 20px; }
+  .hero h1 {
+    font-family: Georgia, 'Times New Roman', serif; font-size: clamp(52px, 9vw, 112px);
+    font-weight: 700; line-height: 0.9; letter-spacing: -0.04em; margin-bottom: 36px;
+  }
+  .hero h1 em { font-weight: 400; font-style: italic; color: var(--text-muted); }
+  .hero-desc { font-size: 20px; color: var(--text-muted); max-width: 520px; line-height: 1.6; margin-bottom: 44px; }
+
+  /* Menu bar mock */
+  .menubar-mock {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 8px 16px; background: rgba(20,20,20,0.8); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; backdrop-filter: blur(20px); font-family: 'SF Mono', Menlo, monospace;
+    font-size: 14px; color: var(--text-secondary); transition: background 0.3s, border-color 0.3s;
+  }
+  .mock-dl { color: var(--dl-color); }
+  .mock-ul { color: var(--ul-color); }
+
+  /* TRACKLIST */
+  .tracklist { padding: 72px 0; }
+  .tracklist-header { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 36px; }
+  .track { display: flex; align-items: baseline; gap: 20px; padding: 20px 0; border-bottom: 1px solid var(--border-subtle); }
+  .track:first-of-type { border-top: 1px solid var(--border-subtle); }
+  .track-num { font-size: 16px; color: var(--text-ghost); font-variant-numeric: tabular-nums; flex-shrink: 0; width: 28px; }
+  .track-title { font-family: Georgia, 'Times New Roman', serif; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; flex-shrink: 0; min-width: 200px; }
+  .track-desc { font-size: 17px; color: var(--text-muted); line-height: 1.55; }
+  .track-duration { margin-left: auto; font-size: 16px; color: var(--text-ghost); font-variant-numeric: tabular-nums; flex-shrink: 0; padding-left: 16px; }
+
+  /* LINER NOTES */
+  .liner-notes { padding: 72px 0; }
+  .liner-notes-header { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 36px; }
+  .notes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+  .note-num { font-family: Georgia, serif; font-size: 56px; font-weight: 700; color: var(--note-num); line-height: 1; margin-bottom: 12px; }
+  .note h3 { font-size: 20px; font-weight: 600; margin-bottom: 10px; }
+  .note p { font-size: 17px; color: var(--text-muted); line-height: 1.6; }
+
+  /* PRIVACY */
+  .privacy { padding: 72px 0; }
+  .privacy-header { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 36px; }
+  .privacy-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+  .privacy-item { padding: 20px; border: 1px solid var(--border-subtle); border-radius: 8px; }
+  .privacy-item h4 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+  .privacy-item p { font-size: 15px; color: var(--text-muted); }
+
+  /* CREDITS */
+  .credits { padding: 72px 0; }
+  .credits-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
+  .credits-install h3, .credits-reqs h3 {
+    font-family: Georgia, serif; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 16px;
+  }
+  .code-block {
+    font-family: 'SF Mono', Menlo, Monaco, monospace; font-size: 15px; line-height: 1.8;
+    color: var(--code-text); background: var(--code-bg); border: 1px solid var(--border);
+    padding: 16px 20px; transition: background 0.3s, border-color 0.3s;
+  }
+  .code-block .dim { color: var(--code-dim); user-select: none; }
+  .req-list { list-style: none; }
+  .req-list li { padding: 14px 0; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: baseline; font-size: 17px; }
+  .req-list li:first-child { border-top: 1px solid var(--border-subtle); }
+  .req-label { color: var(--text-secondary); }
+  .req-value { color: var(--text-faint); font-size: 16px; }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border); padding: 32px clamp(24px, 5vw, 60px);
+    display: flex; justify-content: space-between; align-items: center;
+    max-width: 960px; margin: 0 auto; transition: border-color 0.3s;
+  }
+  .footer-name { font-size: 14px; font-weight: 600; color: var(--text-faint); }
+  .footer-right { font-size: 14px; color: var(--text-ghost); display: flex; gap: 16px; }
+  .footer-right a { color: var(--text-faint); text-decoration: none; transition: color 0.2s; }
+  .footer-right a:hover { color: var(--text-secondary); }
+
+  /* REVEAL */
+  .reveal { opacity: 0; transform: translateY(16px); transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1); }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+  .reveal-d1 { transition-delay: 0.06s; }
+  .reveal-d2 { transition-delay: 0.12s; }
+  .reveal-d3 { transition-delay: 0.18s; }
+  .reveal-d4 { transition-delay: 0.24s; }
+
+  @media (max-width: 768px) {
+    .notes-grid, .privacy-grid { grid-template-columns: 1fr; gap: 32px; }
+    .credits-cols { grid-template-columns: 1fr; gap: 40px; }
+    .track { flex-wrap: wrap; gap: 4px 16px; }
+    .track-title { min-width: unset; }
+    .track-duration { margin-left: 48px; }
+  }
+  .screenshot-showcase { padding: 0 0 60px; text-align: center; }
+  .screenshot-img { max-width: 600px; width: 100%; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+  .feature-screenshot { max-width: 400px; width: 100%; border-radius: 8px; border: 1px solid var(--border); margin-top: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+  @media (max-width: 768px) { .screenshot-img { max-width: 100%; } .feature-screenshot { max-width: 100%; } }
+  @media (max-width: 480px) {
+    .hero h1 { font-size: 44px; }
+    .track-title { font-size: 19px; }
+    .privacy-grid { grid-template-columns: 1fr 1fr; }
+    footer { flex-direction: column; gap: 8px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="nav-name">Spook</a>
+  <div class="nav-right">
+    <div class="theme-switcher" aria-label="Theme">
+      <button class="theme-btn" data-theme="light" title="Light"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></button>
+      <button class="theme-btn" data-theme="system" title="System"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></button>
+      <button class="theme-btn" data-theme="dark" title="Dark"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></button>
+    </div>
+    <a href="https://github.com/qaid/spook" class="nav-link">GitHub</a>
+  </div>
+</nav>
+
+<section class="hero container">
+  <div class="hero-overline reveal">macOS Network Monitor &mdash; Open Source</div>
+  <h1 class="reveal reveal-d1">Spook</h1>
+  <p class="hero-desc reveal reveal-d2">See what's talking on your Mac. Real-time traffic monitoring from your menu bar. Per-app breakdown, connection details, and history graphs.</p>
+  <div class="menubar-mock reveal reveal-d3">
+    <span class="mock-dl" id="dl-speed">&#8595; 1.2 MB/s</span>
+    <span class="mock-ul" id="ul-speed">&#8593; 340 KB/s</span>
+  </div>
+</section>
+
+<section class="screenshot-showcase container reveal">
+  <img src="images/app-overview.png" alt="Spook app panel showing speed stats, traffic history, and per-app list" class="screenshot-img">
+</section>
+
+<hr class="divider container">
+
+<section class="tracklist container">
+  <div class="tracklist-header reveal">Features</div>
+
+  <div class="track reveal"><span class="track-num">A1</span><span class="track-title">Menu Bar Traffic</span><span class="track-desc">Live &#8595;/&#8593; speeds updating every second right in your menu bar.<br><img src="images/menu-bar.png" alt="Menu bar status item showing speeds" class="feature-screenshot"></span><span class="track-duration">1s</span></div>
+  <div class="track reveal reveal-d1"><span class="track-num">A2</span><span class="track-title">Per-App Breakdown</span><span class="track-desc">See exactly which apps are using your network and how much.<br><img src="images/app-list.png" alt="Per-app traffic breakdown list" class="feature-screenshot"></span><span class="track-duration">All</span></div>
+  <div class="track reveal reveal-d2"><span class="track-num">B1</span><span class="track-title">Connection Details</span><span class="track-desc">Remote IPs, ports, protocols, and reverse DNS hostnames for every connection.</span><span class="track-duration">DNS</span></div>
+  <div class="track reveal reveal-d3"><span class="track-num">B2</span><span class="track-title">Traffic Graphs</span><span class="track-desc">Visualize network usage over 1 hour, 24 hours, or 7 days with dynamic time labels.<br><img src="images/traffic-history.png" alt="Traffic history graph" class="feature-screenshot"></span><span class="track-duration">7d</span></div>
+  <div class="track reveal"><span class="track-num">C1</span><span class="track-title">Direction Filter</span><span class="track-desc">Toggle to focus on download-only or upload-only traffic.</span><span class="track-duration">&#8595;&#8593;</span></div>
+  <div class="track reveal reveal-d1"><span class="track-num">C2</span><span class="track-title">Search &amp; Freeze</span><span class="track-desc">Find apps instantly with live search, freeze the list while inspecting rapidly changing entries.</span><span class="track-duration">&#9889;</span></div>
+  <div class="track reveal reveal-d2"><span class="track-num">C3</span><span class="track-title">Pin Mode</span><span class="track-desc">Keep the detail window visible while you work. Appears in Cmd+Tab when pinned.</span><span class="track-duration">&#128204;</span></div>
+</section>
+
+<hr class="divider container">
+
+<section class="liner-notes container">
+  <div class="liner-notes-header reveal">How It Works</div>
+  <div class="notes-grid">
+    <div class="note reveal">
+      <div class="note-num">1</div>
+      <h3>Build</h3>
+      <p>Clone the repo and run <code>swift build</code>. One command to bundle the .app with <code>./deploy.sh</code>.</p>
+    </div>
+    <div class="note reveal reveal-d1">
+      <div class="note-num">2</div>
+      <h3>Launch</h3>
+      <p>Spook lives in your menu bar. Click to open the detail panel. Right-click for settings.</p>
+    </div>
+    <div class="note reveal reveal-d2">
+      <div class="note-num">3</div>
+      <h3>Monitor</h3>
+      <p>Watch per-app traffic in real-time. Expand any app to see connection details and DNS hostnames.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider container">
+
+<section class="privacy container">
+  <div class="privacy-header reveal">Privacy</div>
+  <div class="privacy-grid">
+    <div class="privacy-item reveal"><h4>No Root</h4><p>No elevated privileges required.</p></div>
+    <div class="privacy-item reveal reveal-d1"><h4>Local Data</h4><p>All data stays on your Mac in SQLite.</p></div>
+    <div class="privacy-item reveal reveal-d2"><h4>No Telemetry</h4><p>Zero analytics. Zero tracking.</p></div>
+    <div class="privacy-item reveal reveal-d3"><h4>Zero Deps</h4><p>No external dependencies.</p></div>
+  </div>
+</section>
+
+<hr class="divider container">
+
+<section class="credits container">
+  <div class="credits-cols">
+    <div class="credits-install reveal">
+      <h3>Install</h3>
+      <div class="code-block"><span class="dim">$</span> git clone https://github.com/qaid/spook.git
+<span class="dim">$</span> cd spook &amp;&amp; swift build
+<span class="dim">$</span> ./deploy.sh</div>
+    </div>
+    <div class="credits-reqs reveal reveal-d1">
+      <h3>Requirements</h3>
+      <ul class="req-list">
+        <li><span class="req-label">Platform</span><span class="req-value">macOS 14+ (Sonoma)</span></li>
+        <li><span class="req-label">Language</span><span class="req-value">Swift 5.9</span></li>
+        <li><span class="req-label">Dependencies</span><span class="req-value">None</span></li>
+        <li><span class="req-label">Data</span><span class="req-value">Local SQLite</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<hr class="divider container">
+
+<footer>
+  <span class="footer-name">Spook</span>
+  <div class="footer-right">
+    <a href="https://github.com/qaid/spook">GitHub</a>
+    <span>MIT License</span>
+  </div>
+</footer>
+
+<script>
+// Theme switcher
+(function() {
+  var btns = document.querySelectorAll('.theme-btn');
+  var html = document.documentElement;
+  function setTheme(mode) {
+    if (mode === 'system') { html.removeAttribute('data-theme'); localStorage.removeItem('theme'); }
+    else { html.setAttribute('data-theme', mode); localStorage.setItem('theme', mode); }
+    btns.forEach(function(b) { b.classList.toggle('active', b.dataset.theme === mode); });
+  }
+  var saved = localStorage.getItem('theme');
+  setTheme(saved || 'system');
+  btns.forEach(function(b) { b.addEventListener('click', function() { setTheme(this.dataset.theme); }); });
+})();
+
+// Animated menu bar mock
+(function() {
+  var dl = document.getElementById('dl-speed');
+  var ul = document.getElementById('ul-speed');
+  function fmt(v) { return v >= 1 ? v.toFixed(1) + ' MB/s' : (v * 1000).toFixed(0) + ' KB/s'; }
+  setInterval(function() {
+    var d = 0.2 + Math.random() * 3.5;
+    var u = 0.05 + Math.random() * 0.8;
+    dl.textContent = '\u2193 ' + fmt(d);
+    ul.textContent = '\u2191 ' + fmt(u);
+  }, 2000);
+})();
+
+// Scroll reveal
+(function() {
+  var els = document.querySelectorAll('.reveal');
+  var obs = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.12 });
+  els.forEach(function(el) { obs.observe(el); });
+})();
+</script>
+</body>
+</html>
