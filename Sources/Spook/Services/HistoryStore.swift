@@ -148,6 +148,8 @@ actor HistoryStore {
     func recordAppStats(_ apps: [AppTraffic]) {
         let today = dateString(Date())
 
+        execute("BEGIN TRANSACTION;")
+
         let sql = """
             INSERT INTO app_daily_stats (date, process_name, display_name, bytes_in, bytes_out)
             VALUES (?, ?, ?, ?, ?)
@@ -157,23 +159,35 @@ actor HistoryStore {
                 bytes_out = bytes_out + excluded.bytes_out;
         """
 
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            execute("ROLLBACK;")
+            return
+        }
+
         for app in apps {
             let deltaIn = app.bytesIn - app.previousBytesIn
             let deltaOut = app.bytesOut - app.previousBytesOut
 
             guard deltaIn > 0 || deltaOut > 0 else { continue }
 
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(stmt, 1, today, -1, nil)
-                sqlite3_bind_text(stmt, 2, app.processName, -1, nil)
-                sqlite3_bind_text(stmt, 3, app.displayName, -1, nil)
-                sqlite3_bind_int64(stmt, 4, deltaIn)
-                sqlite3_bind_int64(stmt, 5, deltaOut)
-                sqlite3_step(stmt)
+            sqlite3_reset(stmt)
+            sqlite3_clear_bindings(stmt)
+
+            sqlite3_bind_text(stmt, 1, today, -1, nil)
+            sqlite3_bind_text(stmt, 2, app.processName, -1, nil)
+            sqlite3_bind_text(stmt, 3, app.displayName, -1, nil)
+            sqlite3_bind_int64(stmt, 4, deltaIn)
+            sqlite3_bind_int64(stmt, 5, deltaOut)
+            if sqlite3_step(stmt) != SQLITE_DONE {
+                sqlite3_finalize(stmt)
+                execute("ROLLBACK;")
+                return
             }
-            sqlite3_finalize(stmt)
         }
+
+        sqlite3_finalize(stmt)
+        execute("COMMIT;")
     }
 
     func recordHourlySample(bytesIn: Int64, bytesOut: Int64) {
