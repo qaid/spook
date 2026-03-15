@@ -8,7 +8,7 @@ struct AppListView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 1) {
                 ForEach(apps) { app in
                     AppRowView(
                         app: app,
@@ -16,7 +16,7 @@ struct AppListView: View {
                         maxTraffic: maxTraffic,
                         isExpanded: expandedApps.contains(app.id),
                         onToggle: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                                 if expandedApps.contains(app.id) {
                                     expandedApps.remove(app.id)
                                 } else {
@@ -25,11 +25,10 @@ struct AppListView: View {
                             }
                         }
                     )
-                    Divider()
-                        .padding(.leading, 44)
                 }
             }
         }
+        .scrollContentBackground(.hidden)
     }
 }
 
@@ -39,6 +38,7 @@ struct AppRowView: View {
     var maxTraffic: Int64 = 1
     let isExpanded: Bool
     let onToggle: () -> Void
+    @State private var isHovered = false
 
     var relevantSpeed: Int64 {
         switch directionFilter {
@@ -60,99 +60,114 @@ struct AppRowView: View {
                 ZStack(alignment: .leading) {
                     // Traffic bar background
                     GeometryReader { geometry in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(trafficBarColor.opacity(0.1))
+                        RoundedRectangle(cornerRadius: CornerRadius.xs)
+                            .fill(trafficBarColor.opacity(0.08))
                             .frame(width: geometry.size.width * trafficRatio)
+                            .animation(.easeOut(duration: 0.3), value: trafficRatio)
                     }
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: Spacing.lg) {
                         // App icon
                         Image(nsImage: app.icon)
                             .resizable()
-                            .frame(width: 24, height: 24)
+                            .frame(width: 28, height: 28)
+                            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
 
                         // App name and totals
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: Spacing.xxs) {
+                            HStack(spacing: Spacing.sm) {
                                 Text(app.displayName)
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(SpookFont.bodyMedium)
                                     .lineLimit(1)
 
                                 // Connection badge
                                 if !app.connections.isEmpty {
                                     Text("\(app.connections.count)")
-                                        .font(.system(size: 9, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 5)
+                                        .font(SpookFont.caption2Medium)
+                                        .foregroundColor(.spookTextSecondary)
+                                        .padding(.horizontal, Spacing.sm)
                                         .padding(.vertical, 1)
-                                        .background(Capsule().fill(Color.secondary.opacity(0.6)))
+                                        .background(
+                                            Capsule()
+                                                .fill(Color.spookSurfaceElevated)
+                                        )
                                 }
                             }
 
                             Text(ByteFormatter.format(app.totalBytes) + " total")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .font(SpookFont.caption3)
+                                .foregroundColor(.spookTextTertiary)
                         }
 
                         Spacer()
 
-                        // Current speeds (show based on filter)
-                        VStack(alignment: .trailing, spacing: 2) {
+                        // Current speeds
+                        VStack(alignment: .trailing, spacing: Spacing.xxs) {
                             if directionFilter != .upload {
-                                HStack(spacing: 4) {
+                                HStack(spacing: Spacing.xs) {
                                     Image(systemName: "arrow.down")
-                                        .font(.system(size: 9))
-                                        .foregroundColor(.blue)
+                                        .font(SpookFont.caption3)
+                                        .foregroundColor(.spookDownload)
                                     Text(SpeedFormatter.formatCompact(app.speedIn))
-                                        .font(.system(size: 11, design: .monospaced))
+                                        .font(SpookFont.caption)
+                                        .monospacedDigit()
                                 }
                                 .opacity(directionFilter == .download ? 1 : (app.speedIn > 0 ? 1 : 0.4))
                             }
 
                             if directionFilter != .download {
-                                HStack(spacing: 4) {
+                                HStack(spacing: Spacing.xs) {
                                     Image(systemName: "arrow.up")
-                                        .font(.system(size: 9))
-                                        .foregroundColor(.green)
+                                        .font(SpookFont.caption3)
+                                        .foregroundColor(.spookUpload)
                                     Text(SpeedFormatter.formatCompact(app.speedOut))
-                                        .font(.system(size: 11, design: .monospaced))
+                                        .font(SpookFont.caption)
+                                        .monospacedDigit()
                                 }
                                 .opacity(directionFilter == .upload ? 1 : (app.speedOut > 0 ? 1 : 0.4))
                             }
                         }
-                        .frame(width: 70, alignment: .trailing)
+                        .frame(width: 75, alignment: .trailing)
 
-                        // Expand indicator (only show if there are connections)
+                        // Expand indicator
                         if !app.connections.isEmpty {
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.secondary)
+                                .font(SpookFont.caption2Semibold)
+                                .foregroundColor(.spookTextSecondary)
                                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
                         } else {
                             Color.clear
                                 .frame(width: 10)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.vertical, Spacing.lg)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(app.connections.isEmpty)
+            .background(Color.white.opacity(isHovered ? 0.05 : 0))
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovered = hovering
+                }
+            }
 
             // Expanded connection details
             if isExpanded && !app.connections.isEmpty {
                 ConnectionsView(connections: app.connections)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
 
     var trafficBarColor: Color {
         switch directionFilter {
-        case .download: return .blue
-        case .upload: return .green
-        case .all: return app.speedIn > app.speedOut ? .blue : .green
+        case .download: return .spookDownload
+        case .upload: return .spookUpload
+        case .all: return app.speedIn > app.speedOut ? .spookDownload : .spookUpload
         }
     }
 }
@@ -161,42 +176,43 @@ struct ConnectionsView: View {
     let connections: [Connection]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 1) {
             ForEach(connections) { connection in
                 ConnectionRowView(connection: connection)
             }
         }
-        .padding(.vertical, 4)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .padding(.vertical, Spacing.xs)
+        .background(Color.black.opacity(0.05))
     }
 }
 
 struct ConnectionRowView: View {
     let connection: Connection
     @State private var resolvedHostname: String?
+    @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.md) {
             // Protocol icon
             Image(systemName: connection.protocolType == "tcp" ? "link" : "antenna.radiowaves.left.and.right")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
+                .font(SpookFont.caption2)
+                .foregroundColor(.spookTextSecondary)
                 .frame(width: 14)
 
             // Address and port
             VStack(alignment: .leading, spacing: 1) {
                 if let hostname = resolvedHostname, hostname != connection.remoteAddress {
                     Text(hostname)
-                        .font(.system(size: 11))
+                        .font(SpookFont.caption)
                         .lineLimit(1)
 
                     Text("\(connection.remoteAddress):\(connection.remotePort)")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.secondary)
+                        .font(SpookFont.monoCaption2)
+                        .foregroundColor(.spookTextSecondary)
                         .lineLimit(1)
                 } else {
                     Text("\(connection.remoteAddress):\(connection.remotePort)")
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(SpookFont.monoCaption)
                         .lineLimit(1)
                 }
             }
@@ -206,19 +222,26 @@ struct ConnectionRowView: View {
             // Connection state
             if !connection.state.isEmpty {
                 Text(connection.state.lowercased())
-                    .font(.system(size: 9))
+                    .font(SpookFont.caption3)
                     .foregroundColor(stateColor(connection.state))
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(stateColor(connection.state).opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xxs)
+                    .background(
+                        Capsule()
+                            .fill(stateColor(connection.state).opacity(0.12))
+                    )
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.leading, 32)
-        .padding(.vertical, 4)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.leading, Spacing.connectionIndent)
+        .padding(.vertical, Spacing.xs)
+        .background(Color.white.opacity(isHovered ? 0.03 : 0))
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
         .task {
-            // Resolve DNS asynchronously
             resolvedHostname = await DNSResolver.shared.resolve(connection.remoteAddress)
         }
     }

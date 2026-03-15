@@ -32,6 +32,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupDetailPanel() {
         guard let monitor = networkMonitor else { return }
         detailPanel = DetailPanel(monitor: monitor)
+        detailPanel?.onOpenSettings = { [weak self] in
+            self?.openSettings()
+        }
     }
 
     private func setupClickOutsideMonitor() {
@@ -96,8 +99,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let buttonRect = button.convert(button.bounds, to: nil)
                 let screenRect = buttonWindow.convertToScreen(buttonRect)
 
-                let panelWidth: CGFloat = 360
-                let panelHeight: CGFloat = 600
+                let panelWidth: CGFloat = 400
+                let panelHeight: CGFloat = 620
 
                 let x = screenRect.midX - panelWidth / 2
                 let y = screenRect.minY - panelHeight - 4
@@ -134,7 +137,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             let window = NSWindow(contentViewController: hostingController)
             window.title = "Spook Settings"
-            window.styleMask = NSWindow.StyleMask([.titled, .closable])
+            window.styleMask = NSWindow.StyleMask([.titled, .closable, .miniaturizable])
             window.center()
 
             settingsWindow = window
@@ -156,23 +159,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 class DetailPanel: NSPanel {
     var isPinned: Bool = false
     private var monitor: NetworkMonitor
+    var onOpenSettings: (() -> Void)?
 
     init(monitor: NetworkMonitor) {
         self.monitor = monitor
 
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 600),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 620),
             styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
+        self.titlebarAppearsTransparent = true
+        self.titleVisibility = .hidden
         self.isFloatingPanel = true
         self.level = .floating
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.isMovableByWindowBackground = true
-        self.titlebarAppearsTransparent = true
-        self.titleVisibility = .hidden
         self.backgroundColor = .clear
         self.isOpaque = false
         self.hasShadow = true
@@ -183,12 +187,16 @@ class DetailPanel: NSPanel {
     private func setupContent() {
         let contentView = DetailPanelContentView(
             monitor: monitor,
-            isPinned: Binding(
-                get: { self.isPinned },
-                set: { self.isPinned = $0 }
-            ),
+            onPinnedChanged: { [weak self] pinned in
+                self?.isPinned = pinned
+                // Show/hide in Cmd+Tab app switcher based on pin state
+                NSApp.setActivationPolicy(pinned ? .regular : .accessory)
+            },
             onClose: { [weak self] in
                 self?.close()
+            },
+            onOpenSettings: { [weak self] in
+                self?.onOpenSettings?()
             }
         )
 
@@ -200,52 +208,101 @@ class DetailPanel: NSPanel {
 
 struct DetailPanelContentView: View {
     var monitor: NetworkMonitor
-    @Binding var isPinned: Bool
+    var onPinnedChanged: (Bool) -> Void
     var onClose: () -> Void
+    var onOpenSettings: () -> Void
+    @State private var isPinned: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
             // Header with pin/close buttons
             HStack {
-                Button(action: { isPinned.toggle() }) {
-                    Image(systemName: isPinned ? "pin.fill" : "pin")
-                        .font(.system(size: 12))
-                        .foregroundColor(isPinned ? .accentColor : .secondary)
+                Button(action: {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                        isPinned.toggle()
+                    }
+                    onPinnedChanged(isPinned)
+                }) {
+                    PinView(isPinned: isPinned)
                 }
                 .buttonStyle(.plain)
                 .help(isPinned ? "Unpin window" : "Pin window to keep it visible")
 
                 Spacer()
 
-                Text("Spook")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondary)
+                Menu {
+                    Button(action: onOpenSettings) {
+                        Label("Settings...", systemImage: "gearshape")
+                    }
+                    .keyboardShortcut(",", modifiers: .command)
 
-                Spacer()
+                    Divider()
+
+                    Button(action: { NSApp.terminate(nil) }) {
+                        Label("Quit Spook", systemImage: "power")
+                    }
+                    .keyboardShortcut("q", modifiers: .command)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(SpookFont.iconMedium)
+                        .foregroundColor(.spookTextSecondary)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .frame(width: 24, height: 24)
+                .help("Menu")
 
                 Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
+                    Image(systemName: "xmark")
+                        .font(SpookFont.caption2Semibold)
+                        .foregroundColor(.spookTextSecondary)
                 }
                 .buttonStyle(.plain)
+                .circularButton()
                 .help("Close")
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(nsColor: .windowBackgroundColor).opacity(0.8))
-
-            Divider()
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.md)
 
             // Main content
             DetailView(monitor: monitor)
         }
         .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.panel))
+        .shadow(color: .black.opacity(0.2), radius: 20, y: 8)
+    }
+}
+
+// MARK: - Pin View
+
+struct PinView: View {
+    let isPinned: Bool
+
+    var body: some View {
+        ZStack {
+            // Pin shadow (only when pinned — simulates pin head elevated above surface)
+            if isPinned {
+                Ellipse()
+                    .fill(Color.black.opacity(0.18))
+                    .frame(width: 10, height: 4)
+                    .offset(x: 1, y: 8)
+                    .blur(radius: 1.5)
+            }
+
+            Image(systemName: isPinned ? "pin.fill" : "pin")
+                .font(SpookFont.icon)
+                .foregroundColor(isPinned ? .accentColor : .spookTextSecondary)
+                .rotationEffect(.degrees(isPinned ? 5 : 0))
+                .scaleEffect(isPinned ? 1.1 : 1.0)
+                .offset(y: isPinned ? 2 : 0)
+                .mask(
+                    Rectangle()
+                        .frame(height: isPinned ? 18 : 24)
+                        .frame(width: 24)
+                        .offset(y: isPinned ? -3 : 0)
+                )
+        }
+        .frame(width: 24, height: 24)
     }
 }
 

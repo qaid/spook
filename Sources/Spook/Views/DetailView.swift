@@ -19,7 +19,6 @@ struct DetailView: View {
 
     var baseApps: [AppTraffic] {
         if isSortPaused {
-            // When paused, keep the frozen order but update the data
             return frozenApps.compactMap { frozenApp in
                 if let updated = monitor.appTraffic.first(where: { $0.id == frozenApp.id }) {
                     return updated
@@ -37,7 +36,6 @@ struct DetailView: View {
     var filteredApps: [AppTraffic] {
         var apps = baseApps
 
-        // Apply direction filter (only sort if not paused)
         switch directionFilter {
         case .download:
             apps = apps.filter { $0.speedIn > 0 || $0.bytesIn > 0 }
@@ -53,7 +51,6 @@ struct DetailView: View {
             break
         }
 
-        // Apply search filter
         if !searchText.isEmpty {
             let query = searchText.lowercased()
             apps = apps.filter { app in
@@ -79,19 +76,15 @@ struct DetailView: View {
                 totalOut: monitor.totalBytesOut
             )
 
-            Divider()
-
             // Traffic Graph
-            TrafficGraphView()
-
-            Divider()
+            TrafficGraphView(monitor: monitor)
+                .padding(.top, Spacing.xs)
 
             // Search Field
             SearchFieldView(searchText: $searchText)
+                .padding(.top, Spacing.xs)
 
-            Divider()
-
-            // App List Header with sort toggle and direction filter
+            // App List Header
             AppListHeaderView(
                 appCount: filteredApps.count,
                 totalCount: baseApps.count,
@@ -106,56 +99,73 @@ struct DetailView: View {
                 }
             )
 
-            Divider()
+            // Subtle separator before list
+            Color.spookBorder
+                .frame(height: 0.5)
+                .padding(.horizontal, Spacing.lg)
 
             // App List
             if filteredApps.isEmpty {
                 if searchText.isEmpty && directionFilter == .all {
                     EmptyStateView()
+                        .transition(.opacity)
                 } else {
                     NoResultsView(searchText: searchText, directionFilter: directionFilter)
+                        .transition(.opacity)
                 }
             } else {
                 AppListView(apps: filteredApps, directionFilter: directionFilter, maxTraffic: maxTraffic)
             }
         }
-        .frame(width: 360, height: 580)
+        .frame(width: 400, height: 600)
     }
 }
+
+// MARK: - Search Field
 
 struct SearchFieldView: View {
     @Binding var searchText: String
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Spacing.sm) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .font(SpookFont.icon)
+                .foregroundColor(.spookTextSecondary)
 
             TextField("Filter apps...", text: $searchText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12))
+                .font(SpookFont.caption)
                 .focused($isFocused)
 
             if !searchText.isEmpty {
                 Button(action: { searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
+                        .font(SpookFont.icon)
+                        .foregroundColor(.spookTextSecondary)
                 }
                 .buttonStyle(.plain)
+                .transition(.scale.combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: CornerRadius.md)
+                .fill(Color.spookTextBackground.opacity(0.5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: CornerRadius.md)
+                        .stroke(isFocused ? Color.accentColor.opacity(0.5) : Color.clear, lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.sm)
+        .animation(.easeInOut(duration: 0.15), value: isFocused)
+        .animation(.easeInOut(duration: 0.15), value: searchText.isEmpty)
     }
 }
+
+// MARK: - App List Header
 
 struct AppListHeaderView: View {
     let appCount: Int
@@ -166,82 +176,75 @@ struct AppListHeaderView: View {
     let onPauseToggle: () -> Void
 
     var body: some View {
-        VStack(spacing: 6) {
+        HStack(spacing: Spacing.md) {
             // Direction filter toggles
-            HStack(spacing: 8) {
-                DirectionToggle(
-                    direction: .download,
-                    isSelected: directionFilter == .download,
-                    onTap: {
-                        directionFilter = directionFilter == .download ? .all : .download
-                    }
-                )
-
-                DirectionToggle(
-                    direction: .upload,
-                    isSelected: directionFilter == .upload,
-                    onTap: {
-                        directionFilter = directionFilter == .upload ? .all : .upload
-                    }
-                )
-
-                Spacer()
-
-                Button(action: onPauseToggle) {
-                    HStack(spacing: 4) {
-                        Image(systemName: isSortPaused ? "play.fill" : "pause.fill")
-                            .font(.system(size: 9))
-                        Text(isSortPaused ? "Resume" : "Freeze")
-                            .font(.system(size: 10))
-                    }
-                    .foregroundColor(isSortPaused ? .orange : .secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(isSortPaused ? Color.orange.opacity(0.15) : Color.secondary.opacity(0.1))
-                    )
+            DirectionToggle(
+                direction: .download,
+                isSelected: directionFilter == .download,
+                onTap: {
+                    directionFilter = directionFilter == .download ? .all : .download
                 }
-                .buttonStyle(.plain)
-                .help(isSortPaused ? "Resume live sorting" : "Freeze list order")
-            }
+            )
+
+            DirectionToggle(
+                direction: .upload,
+                isSelected: directionFilter == .upload,
+                onTap: {
+                    directionFilter = directionFilter == .upload ? .all : .upload
+                }
+            )
+
+            Spacer()
 
             // App count
-            HStack {
-                Text("Active Applications")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-
-                if isFiltered {
-                    Text("(\(appCount) of \(totalCount))")
-                        .font(.system(size: 11))
-                        .foregroundColor(.orange)
-                } else {
-                    Text("(\(appCount))")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary.opacity(0.7))
-                }
-
-                Spacer()
+            if isFiltered {
+                Text("\(appCount) of \(totalCount)")
+                    .font(SpookFont.caption2)
+                    .foregroundColor(.orange)
+            } else {
+                Text("\(appCount) apps")
+                    .font(SpookFont.caption2)
+                    .foregroundColor(.spookTextTertiary)
             }
+
+            // Freeze button
+            Button(action: onPauseToggle) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: isSortPaused ? "play.fill" : "pause.fill")
+                        .font(SpookFont.caption2)
+                    Text(isSortPaused ? "Resume" : "Freeze")
+                        .font(SpookFont.caption)
+                }
+                .foregroundColor(isSortPaused ? .orange : .spookTextSecondary)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.xs)
+                .background(
+                    Capsule()
+                        .fill(isSortPaused ? Color.orange.opacity(0.15) : Color.spookTextSecondary.opacity(0.1))
+                )
+            }
+            .buttonStyle(.plain)
+            .help(isSortPaused ? "Resume live sorting" : "Freeze list order")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.md)
     }
 }
+
+// MARK: - Direction Toggle
 
 struct DirectionToggle: View {
     let direction: TrafficDirection
     let isSelected: Bool
     let onTap: () -> Void
+    @State private var isHovered = false
 
     var icon: String {
         direction == .download ? "arrow.down" : "arrow.up"
     }
 
     var color: Color {
-        direction == .download ? .blue : .green
+        direction == .download ? .spookDownload : .spookUpload
     }
 
     var label: String {
@@ -250,24 +253,31 @@ struct DirectionToggle: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.xs) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(SpookFont.caption2Semibold)
                 Text(label)
-                    .font(.system(size: 10))
+                    .font(SpookFont.caption)
             }
             .foregroundColor(isSelected ? .white : color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.sm)
             .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(isSelected ? color : color.opacity(0.15))
+                Capsule()
+                    .fill(isSelected ? color : color.opacity(isHovered ? 0.2 : 0.12))
             )
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
         .help(isSelected ? "Show all traffic" : "Show only \(label.lowercased()) traffic")
     }
 }
+
+// MARK: - Summary Header
 
 struct SummaryHeaderView: View {
     let downloadSpeed: Int64
@@ -276,77 +286,107 @@ struct SummaryHeaderView: View {
     let totalOut: Int64
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 32) {
-                // Download
-                VStack(alignment: .center, spacing: 4) {
-                    HStack(spacing: 4) {
+        VStack(spacing: Spacing.lg) {
+            // Speed readouts
+            HStack(spacing: 0) {
+                // Download column
+                VStack(alignment: .center, spacing: Spacing.xs) {
+                    HStack(spacing: Spacing.xs) {
                         Image(systemName: "arrow.down.circle.fill")
-                            .foregroundColor(.blue)
+                            .foregroundColor(.spookDownload)
+                            .font(SpookFont.icon)
                         Text("Download")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(SpookFont.caption)
+                            .foregroundColor(.spookTextSecondary)
                     }
                     Text(SpeedFormatter.format(downloadSpeed))
-                        .font(.system(size: 20, weight: .semibold, design: .monospaced))
+                        .font(SpookFont.title)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
                 }
+                .frame(maxWidth: .infinity)
 
-                // Upload
-                VStack(alignment: .center, spacing: 4) {
-                    HStack(spacing: 4) {
+                // Vertical divider
+                RoundedRectangle(cornerRadius: CornerRadius.hairline)
+                    .fill(Color.spookBorder)
+                    .frame(width: 1, height: 28)
+
+                // Upload column
+                VStack(alignment: .center, spacing: Spacing.xs) {
+                    HStack(spacing: Spacing.xs) {
                         Image(systemName: "arrow.up.circle.fill")
-                            .foregroundColor(.green)
+                            .foregroundColor(.spookUpload)
+                            .font(SpookFont.icon)
                         Text("Upload")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(SpookFont.caption)
+                            .foregroundColor(.spookTextSecondary)
                     }
                     Text(SpeedFormatter.format(uploadSpeed))
-                        .font(.system(size: 20, weight: .semibold, design: .monospaced))
+                        .font(SpookFont.title)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
                 }
+                .frame(maxWidth: .infinity)
             }
 
             // Session totals
-            HStack(spacing: 16) {
-                Text("Session:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            HStack(spacing: Spacing.lg) {
+                Image(systemName: "clock")
+                    .font(SpookFont.caption2)
+                    .foregroundColor(.spookTextTertiary)
 
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.xs) {
                     Image(systemName: "arrow.down")
-                        .font(.caption2)
-                        .foregroundColor(.blue)
+                        .font(SpookFont.caption3)
+                        .foregroundColor(.spookDownload)
                     Text(ByteFormatter.format(totalIn))
-                        .font(.caption)
+                        .font(SpookFont.caption2)
+                        .foregroundColor(.spookTextSecondary)
                 }
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xxs)
+                .background(
+                    Capsule()
+                        .fill(Color.spookDownload.opacity(0.08))
+                )
 
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.xs) {
                     Image(systemName: "arrow.up")
-                        .font(.caption2)
-                        .foregroundColor(.green)
+                        .font(SpookFont.caption3)
+                        .foregroundColor(.spookUpload)
                     Text(ByteFormatter.format(totalOut))
-                        .font(.caption)
+                        .font(SpookFont.caption2)
+                        .foregroundColor(.spookTextSecondary)
                 }
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xxs)
+                .background(
+                    Capsule()
+                        .fill(Color.spookUpload.opacity(0.08))
+                )
             }
         }
-        .padding()
+        .padding(.horizontal, Spacing.xl)
+        .padding(.vertical, Spacing.lg)
         .frame(maxWidth: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
+// MARK: - Empty States
+
 struct EmptyStateView: View {
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Spacing.md) {
             Spacer()
             Image(systemName: "network.slash")
-                .font(.system(size: 32))
-                .foregroundColor(.secondary)
+                .font(SpookFont.iconXl)
+                .foregroundColor(.spookTextTertiary)
             Text("No network activity")
-                .font(.headline)
-                .foregroundColor(.secondary)
+                .font(SpookFont.headline)
+                .foregroundColor(.spookTextSecondary)
             Text("Traffic will appear here when apps use the network")
-                .font(.caption)
-                .foregroundColor(.secondary.opacity(0.7))
+                .font(SpookFont.caption)
+                .foregroundColor(.spookTextTertiary)
                 .multilineTextAlignment(.center)
             Spacer()
         }
@@ -360,29 +400,29 @@ struct NoResultsView: View {
     var directionFilter: TrafficDirection = .all
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Spacing.md) {
             Spacer()
             Image(systemName: directionFilter != .all ? (directionFilter == .download ? "arrow.down.circle" : "arrow.up.circle") : "magnifyingglass")
-                .font(.system(size: 32))
-                .foregroundColor(.secondary)
+                .font(SpookFont.iconXl)
+                .foregroundColor(.spookTextTertiary)
             Text("No matches")
-                .font(.headline)
-                .foregroundColor(.secondary)
+                .font(SpookFont.headline)
+                .foregroundColor(.spookTextSecondary)
 
             if !searchText.isEmpty {
                 Text("No apps matching \"\(searchText)\"")
-                    .font(.caption)
-                    .foregroundColor(.secondary.opacity(0.7))
+                    .font(SpookFont.caption)
+                    .foregroundColor(.spookTextTertiary)
                     .multilineTextAlignment(.center)
             } else if directionFilter == .download {
                 Text("No apps with download activity")
-                    .font(.caption)
-                    .foregroundColor(.secondary.opacity(0.7))
+                    .font(SpookFont.caption)
+                    .foregroundColor(.spookTextTertiary)
                     .multilineTextAlignment(.center)
             } else if directionFilter == .upload {
                 Text("No apps with upload activity")
-                    .font(.caption)
-                    .foregroundColor(.secondary.opacity(0.7))
+                    .font(SpookFont.caption)
+                    .foregroundColor(.spookTextTertiary)
                     .multilineTextAlignment(.center)
             }
 
