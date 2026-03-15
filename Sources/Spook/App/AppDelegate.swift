@@ -166,14 +166,13 @@ class DetailPanel: NSPanel {
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 620),
-            styleMask: [.borderless, .fullSizeContentView, .nonactivatingPanel],
+            styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
         self.titlebarAppearsTransparent = true
         self.titleVisibility = .hidden
-        self.titlebarSeparatorStyle = .none
         self.isFloatingPanel = true
         self.level = .floating
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
