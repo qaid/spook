@@ -166,11 +166,13 @@ class DetailPanel: NSPanel {
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 620),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
+        self.titlebarAppearsTransparent = true
+        self.titleVisibility = .hidden
         self.isFloatingPanel = true
         self.level = .floating
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -242,7 +244,7 @@ struct DetailPanelContentView: View {
                     .keyboardShortcut("q", modifiers: .command)
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(SpookFont.iconMedium)
                         .foregroundColor(.spookTextSecondary)
                 }
                 .menuStyle(.borderlessButton)
@@ -252,7 +254,7 @@ struct DetailPanelContentView: View {
 
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(SpookFont.caption2Semibold)
                         .foregroundColor(.spookTextSecondary)
                 }
                 .buttonStyle(.plain)
@@ -288,7 +290,7 @@ struct PinView: View {
             }
 
             Image(systemName: isPinned ? "pin.fill" : "pin")
-                .font(.system(size: 12))
+                .font(SpookFont.icon)
                 .foregroundColor(isPinned ? .accentColor : .spookTextSecondary)
                 .rotationEffect(.degrees(isPinned ? 5 : 0))
                 .scaleEffect(isPinned ? 1.1 : 1.0)

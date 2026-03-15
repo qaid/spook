@@ -130,7 +130,7 @@ struct SearchFieldView: View {
     var body: some View {
         HStack(spacing: Spacing.sm) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 12))
+                .font(SpookFont.icon)
                 .foregroundColor(.spookTextSecondary)
 
             TextField("Filter apps...", text: $searchText)
@@ -141,7 +141,7 @@ struct SearchFieldView: View {
             if !searchText.isEmpty {
                 Button(action: { searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
+                        .font(SpookFont.icon)
                         .foregroundColor(.spookTextSecondary)
                 }
                 .buttonStyle(.plain)
@@ -211,7 +211,7 @@ struct AppListHeaderView: View {
             Button(action: onPauseToggle) {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: isSortPaused ? "play.fill" : "pause.fill")
-                        .font(.system(size: 10))
+                        .font(SpookFont.caption2)
                     Text(isSortPaused ? "Resume" : "Freeze")
                         .font(SpookFont.caption)
                 }
@@ -255,7 +255,7 @@ struct DirectionToggle: View {
         Button(action: onTap) {
             HStack(spacing: Spacing.xs) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(SpookFont.caption2Semibold)
                 Text(label)
                     .font(SpookFont.caption)
             }
@@ -294,7 +294,7 @@ struct SummaryHeaderView: View {
                     HStack(spacing: Spacing.xs) {
                         Image(systemName: "arrow.down.circle.fill")
                             .foregroundColor(.spookDownload)
-                            .font(.system(size: 12))
+                            .font(SpookFont.icon)
                         Text("Download")
                             .font(SpookFont.caption)
                             .foregroundColor(.spookTextSecondary)
@@ -307,7 +307,7 @@ struct SummaryHeaderView: View {
                 .frame(maxWidth: .infinity)
 
                 // Vertical divider
-                RoundedRectangle(cornerRadius: 1)
+                RoundedRectangle(cornerRadius: CornerRadius.hairline)
                     .fill(Color.spookBorder)
                     .frame(width: 1, height: 28)
 
@@ -316,7 +316,7 @@ struct SummaryHeaderView: View {
                     HStack(spacing: Spacing.xs) {
                         Image(systemName: "arrow.up.circle.fill")
                             .foregroundColor(.spookUpload)
-                            .font(.system(size: 12))
+                            .font(SpookFont.icon)
                         Text("Upload")
                             .font(SpookFont.caption)
                             .foregroundColor(.spookTextSecondary)
@@ -332,12 +332,12 @@ struct SummaryHeaderView: View {
             // Session totals
             HStack(spacing: Spacing.lg) {
                 Image(systemName: "clock")
-                    .font(.system(size: 10))
+                    .font(SpookFont.caption2)
                     .foregroundColor(.spookTextTertiary)
 
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "arrow.down")
-                        .font(.system(size: 9))
+                        .font(SpookFont.caption3)
                         .foregroundColor(.spookDownload)
                     Text(ByteFormatter.format(totalIn))
                         .font(SpookFont.caption2)
@@ -352,7 +352,7 @@ struct SummaryHeaderView: View {
 
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 9))
+                        .font(SpookFont.caption3)
                         .foregroundColor(.spookUpload)
                     Text(ByteFormatter.format(totalOut))
                         .font(SpookFont.caption2)
@@ -379,7 +379,7 @@ struct EmptyStateView: View {
         VStack(spacing: Spacing.md) {
             Spacer()
             Image(systemName: "network.slash")
-                .font(.system(size: 32))
+                .font(SpookFont.iconXl)
                 .foregroundColor(.spookTextTertiary)
             Text("No network activity")
                 .font(SpookFont.headline)
@@ -403,7 +403,7 @@ struct NoResultsView: View {
         VStack(spacing: Spacing.md) {
             Spacer()
             Image(systemName: directionFilter != .all ? (directionFilter == .download ? "arrow.down.circle" : "arrow.up.circle") : "magnifyingglass")
-                .font(.system(size: 32))
+                .font(SpookFont.iconXl)
                 .foregroundColor(.spookTextTertiary)
             Text("No matches")
                 .font(SpookFont.headline)

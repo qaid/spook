@@ -60,7 +60,7 @@ struct AppRowView: View {
                 ZStack(alignment: .leading) {
                     // Traffic bar background
                     GeometryReader { geometry in
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: CornerRadius.xs)
                             .fill(trafficBarColor.opacity(0.08))
                             .frame(width: geometry.size.width * trafficRatio)
                             .animation(.easeOut(duration: 0.3), value: trafficRatio)
@@ -83,7 +83,7 @@ struct AppRowView: View {
                                 // Connection badge
                                 if !app.connections.isEmpty {
                                     Text("\(app.connections.count)")
-                                        .font(.system(size: 10, weight: .medium))
+                                        .font(SpookFont.caption2Medium)
                                         .foregroundColor(.spookTextSecondary)
                                         .padding(.horizontal, Spacing.sm)
                                         .padding(.vertical, 1)
@@ -106,7 +106,7 @@ struct AppRowView: View {
                             if directionFilter != .upload {
                                 HStack(spacing: Spacing.xs) {
                                     Image(systemName: "arrow.down")
-                                        .font(.system(size: 9))
+                                        .font(SpookFont.caption3)
                                         .foregroundColor(.spookDownload)
                                     Text(SpeedFormatter.formatCompact(app.speedIn))
                                         .font(SpookFont.caption)
@@ -118,7 +118,7 @@ struct AppRowView: View {
                             if directionFilter != .download {
                                 HStack(spacing: Spacing.xs) {
                                     Image(systemName: "arrow.up")
-                                        .font(.system(size: 9))
+                                        .font(SpookFont.caption3)
                                         .foregroundColor(.spookUpload)
                                     Text(SpeedFormatter.formatCompact(app.speedOut))
                                         .font(SpookFont.caption)
@@ -132,7 +132,7 @@ struct AppRowView: View {
                         // Expand indicator
                         if !app.connections.isEmpty {
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(SpookFont.caption2Semibold)
                                 .foregroundColor(.spookTextSecondary)
                                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
                                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
@@ -195,7 +195,7 @@ struct ConnectionRowView: View {
         HStack(spacing: Spacing.md) {
             // Protocol icon
             Image(systemName: connection.protocolType == "tcp" ? "link" : "antenna.radiowaves.left.and.right")
-                .font(.system(size: 10))
+                .font(SpookFont.caption2)
                 .foregroundColor(.spookTextSecondary)
                 .frame(width: 14)
 
@@ -207,7 +207,7 @@ struct ConnectionRowView: View {
                         .lineLimit(1)
 
                     Text("\(connection.remoteAddress):\(connection.remotePort)")
-                        .font(.system(size: 10, design: .monospaced))
+                        .font(SpookFont.monoCaption2)
                         .foregroundColor(.spookTextSecondary)
                         .lineLimit(1)
                 } else {
@@ -233,7 +233,7 @@ struct ConnectionRowView: View {
             }
         }
         .padding(.horizontal, Spacing.lg)
-        .padding(.leading, 44)
+        .padding(.leading, Spacing.connectionIndent)
         .padding(.vertical, Spacing.xs)
         .background(Color.white.opacity(isHovered ? 0.03 : 0))
         .onHover { hovering in

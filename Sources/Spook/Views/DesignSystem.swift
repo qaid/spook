@@ -12,11 +12,14 @@ enum Spacing {
     static let xxl: CGFloat = 20
     static let xxxl: CGFloat = 24
     static let huge: CGFloat = 32
+    static let connectionIndent: CGFloat = 44
 }
 
 // MARK: - Corner Radius
 
 enum CornerRadius {
+    static let hairline: CGFloat = 1
+    static let xs: CGFloat = 3
     static let sm: CGFloat = 4
     static let md: CGFloat = 6
     static let lg: CGFloat = 8
@@ -29,12 +32,19 @@ enum CornerRadius {
 enum SpookFont {
     static let caption3: Font = .system(size: 9)
     static let caption2: Font = .system(size: 10)
+    static let caption2Medium: Font = .system(size: 10, weight: .medium)
+    static let caption2Semibold: Font = .system(size: 10, weight: .semibold)
     static let caption: Font = .system(size: 11)
+    static let icon: Font = .system(size: 12)
+    static let iconMedium: Font = .system(size: 12, weight: .medium)
     static let body: Font = .system(size: 13)
     static let bodyMedium: Font = .system(size: 13, weight: .medium)
     static let headline: Font = .system(size: 15, weight: .semibold)
     static let title: Font = .system(size: 22, weight: .semibold)
+    static let iconLg: Font = .system(size: 24)
+    static let iconXl: Font = .system(size: 32)
 
+    static let monoCaption2: Font = .system(size: 10, design: .monospaced)
     static let monoCaption: Font = .system(size: 11, design: .monospaced)
     static let monoBody: Font = .system(size: 13, design: .monospaced)
 }

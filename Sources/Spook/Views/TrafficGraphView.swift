@@ -94,7 +94,7 @@ struct TrafficGraphView: View {
                 // Styled empty state
                 VStack(spacing: Spacing.sm) {
                     Image(systemName: "chart.xyaxis.line")
-                        .font(.system(size: 24))
+                        .font(SpookFont.iconLg)
                         .foregroundColor(.spookTextTertiary)
                     Text("No traffic recorded")
                         .font(SpookFont.caption)
@@ -166,7 +166,11 @@ struct TrafficGraphView: View {
             // Auto-refresh every 2 seconds for the 1-hour view
             if selectedRange == .hour {
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(2))
+                    do {
+                        try await Task.sleep(for: .seconds(2))
+                    } catch {
+                        break
+                    }
                     await loadSamples()
                 }
             }
