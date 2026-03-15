@@ -34,7 +34,17 @@ if [ -f "Resources/AppIcon.icns" ]; then
 fi
 
 echo "Code signing..."
-codesign --force --sign - "$APP_PATH"
+SIGNING_IDENTITY="Developer ID Application: Qaid Jacobs (NC9DMTN36B)"
+ENTITLEMENTS="Resources/Spook.entitlements"
+
+codesign --force --deep --sign "$SIGNING_IDENTITY" \
+    --options runtime \
+    --entitlements "$ENTITLEMENTS" \
+    --timestamp \
+    "$APP_PATH"
+
+echo "Verifying code signature..."
+codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
 echo "Registering with Launch Services..."
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_PATH"
