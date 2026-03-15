@@ -131,8 +131,9 @@
   }
   .screenshot { position: relative; cursor: pointer; }
   .screenshot img {
-    width: 100%; aspect-ratio: 4 / 3; object-fit: contain; object-position: bottom;
-    border-radius: 8px; border: none; display: block;
+    width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: top;
+    border-radius: 8px; border: 1px solid var(--screenshot-border);
+    box-shadow: var(--img-shadow); display: block;
   }
   .screenshot-caption {
     display: block; margin-top: 10px; font-size: 14px; color: var(--text-faint);
