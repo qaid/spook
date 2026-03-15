@@ -107,7 +107,7 @@
   .hero h1 em { font-weight: 400; font-style: italic; color: var(--text-muted); }
   .hero-desc { font-size: 20px; color: var(--text-muted); max-width: 520px; line-height: 1.6; margin-bottom: 44px; }
 
-  /* Network topology — full width, no container */
+  /* Network topology */
   #topology-canvas {
     width: 100%; height: 320px;
     display: block;
@@ -129,11 +129,13 @@
   .screenshots-grid {
     display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 24px; align-items: start;
   }
-  .screenshot { position: relative; cursor: pointer; }
+  .screenshot { position: relative; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+  .screenshot:hover { transform: translateY(-2px); }
+  .screenshot:hover img { box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
   .screenshot img {
     width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: top;
     border-radius: 8px; border: 1px solid var(--screenshot-border);
-    box-shadow: var(--img-shadow); display: block;
+    box-shadow: var(--img-shadow); display: block; transition: box-shadow 0.2s;
   }
   .screenshot-caption {
     display: block; margin-top: 10px; font-size: 14px; color: var(--text-faint);
@@ -461,7 +463,7 @@
     canvas.width = W * dpr; canvas.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  resize();
+  requestAnimationFrame(resize);
   window.addEventListener('resize', resize);
 
   // 20 outer nodes, alternating dl/ul, varied distances from center
@@ -491,7 +493,7 @@
 
   // Each arm gets 1 packet starting at a random phase so they don't move in waves
   var arms = [];
-  for (var i = 1; i < nodesDef.length; i++) {
+  for (let i = 1; i < nodesDef.length; i++) {
     arms.push({ nodeIdx: i, packets: [Math.random()] });
   }
 
@@ -499,26 +501,34 @@
     return { x: def.rx * W, y: def.ry * H };
   }
 
-  function getColors() {
+  // Cache colors and update only on theme change
+  var cachedColors = null;
+  function refreshColors() {
     var style = getComputedStyle(document.documentElement);
-    return {
+    cachedColors = {
       node: style.getPropertyValue('--node-color').trim(),
       edge: style.getPropertyValue('--edge-color').trim(),
       dl: style.getPropertyValue('--pulse-dl').trim(),
       ul: style.getPropertyValue('--pulse-ul').trim()
     };
   }
+  refreshColors();
+  // Re-read colors when theme changes via MutationObserver on data-theme attribute
+  new MutationObserver(refreshColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  // Also refresh on system theme change
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', refreshColors);
 
   function frame() {
+    if (!W || !H) { requestAnimationFrame(frame); return; }
     ctx.clearRect(0, 0, W, H);
-    var colors = getColors();
+    var colors = cachedColors;
     var hub = getNodePos(nodesDef[0]);
 
     // Draw edges
     ctx.lineWidth = 1;
     ctx.strokeStyle = colors.edge;
-    for (var i = 1; i < nodesDef.length; i++) {
-      var np = getNodePos(nodesDef[i]);
+    for (let i = 1; i < nodesDef.length; i++) {
+      let np = getNodePos(nodesDef[i]);
       ctx.beginPath();
       ctx.moveTo(hub.x, hub.y);
       ctx.lineTo(np.x, np.y);
@@ -527,31 +537,31 @@
 
     // Draw packets on every arm
     var speed = 0.0012; // very slow
-    for (var a = 0; a < arms.length; a++) {
-      var arm = arms[a];
-      var def = nodesDef[arm.nodeIdx];
-      var np = getNodePos(def);
-      var isDl = def.dir === 'dl';
-      var pktColor = isDl ? colors.dl : colors.ul;
+    for (let a = 0; a < arms.length; a++) {
+      let arm = arms[a];
+      let def = nodesDef[arm.nodeIdx];
+      let np = getNodePos(def);
+      let isDl = def.dir === 'dl';
+      let pktColor = isDl ? colors.dl : colors.ul;
 
-      for (var j = 0; j < arm.packets.length; j++) {
+      for (let j = 0; j < arm.packets.length; j++) {
         arm.packets[j] += speed;
         if (arm.packets[j] >= 1) arm.packets[j] -= 1;
 
-        var t = arm.packets[j];
+        let t = arm.packets[j];
         // Download: outer node -> hub. Upload: hub -> outer node.
-        var sx, sy, ex, ey;
+        let sx, sy, ex, ey;
         if (isDl) {
           sx = np.x; sy = np.y; ex = hub.x; ey = hub.y;
         } else {
           sx = hub.x; sy = hub.y; ex = np.x; ey = np.y;
         }
 
-        var px = sx + (ex - sx) * t;
-        var py = sy + (ey - sy) * t;
+        let px = sx + (ex - sx) * t;
+        let py = sy + (ey - sy) * t;
 
         // Fade in/out at endpoints
-        var alpha = t < 0.08 ? t / 0.08 : t > 0.92 ? (1 - t) / 0.08 : 1;
+        let alpha = t < 0.08 ? t / 0.08 : t > 0.92 ? (1 - t) / 0.08 : 1;
         ctx.globalAlpha = alpha * 0.85;
         ctx.beginPath();
         ctx.arc(px, py, 2.5, 0, Math.PI * 2);
@@ -569,9 +579,9 @@
     ctx.fill();
 
     // Outer nodes — colored by direction
-    for (var i = 1; i < nodesDef.length; i++) {
-      var def = nodesDef[i];
-      var np = getNodePos(def);
+    for (let i = 1; i < nodesDef.length; i++) {
+      let def = nodesDef[i];
+      let np = getNodePos(def);
       ctx.beginPath();
       ctx.arc(np.x, np.y, def.r, 0, Math.PI * 2);
       ctx.fillStyle = def.dir === 'dl' ? colors.dl : colors.ul;
