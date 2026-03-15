@@ -16,6 +16,8 @@
     --cta-color: #aaa; --cta-hover: #f0f0f0; --cta-border: #444; --cta-border-hover: #777;
     --link-color: #888; --link-hover: #ccc; --link-border: #444; --link-border-hover: #777;
     --dl-color: #4e7fff; --ul-color: #34c759;
+    --node-color: rgba(255,255,255,0.5); --edge-color: rgba(255,255,255,0.08);
+    --pulse-dl: rgba(78,127,255,0.6); --pulse-ul: rgba(52,199,89,0.6);
     color-scheme: dark;
   }
 
@@ -27,6 +29,8 @@
     --scanline: rgba(0,0,0,0.006); --note-num: #e8e6e0;
     --cta-color: #555; --cta-hover: #111; --cta-border: #bbb; --cta-border-hover: #666;
     --link-color: #666; --link-hover: #222; --link-border: #bbb; --link-border-hover: #666;
+    --node-color: rgba(0,0,0,0.35); --edge-color: rgba(0,0,0,0.06);
+    --pulse-dl: rgba(78,127,255,0.5); --pulse-ul: rgba(52,199,89,0.5);
     color-scheme: light;
   }
 
@@ -39,6 +43,8 @@
       --scanline: rgba(0,0,0,0.006); --note-num: #e8e6e0;
       --cta-color: #555; --cta-hover: #111; --cta-border: #bbb; --cta-border-hover: #666;
       --link-color: #666; --link-hover: #222; --link-border: #bbb; --link-border-hover: #666;
+      --node-color: rgba(0,0,0,0.35); --edge-color: rgba(0,0,0,0.06);
+      --pulse-dl: rgba(78,127,255,0.5); --pulse-ul: rgba(52,199,89,0.5);
       color-scheme: light;
     }
   }
@@ -87,7 +93,7 @@
   .divider { border: none; border-top: 1px solid var(--border); margin: 0; transition: border-color 0.3s; }
 
   /* HERO */
-  .hero { padding-top: 100px; padding-bottom: 80px; }
+  .hero { padding-top: 100px; padding-bottom: 40px; }
   .hero-overline { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 20px; }
   .hero h1 {
     font-family: Georgia, 'Times New Roman', serif; font-size: clamp(52px, 9vw, 112px);
@@ -96,15 +102,13 @@
   .hero h1 em { font-weight: 400; font-style: italic; color: var(--text-muted); }
   .hero-desc { font-size: 20px; color: var(--text-muted); max-width: 520px; line-height: 1.6; margin-bottom: 44px; }
 
-  /* Menu bar mock */
-  .menubar-mock {
-    display: inline-flex; align-items: center; gap: 12px;
-    padding: 8px 16px; background: rgba(20,20,20,0.8); border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 12px; backdrop-filter: blur(20px); font-family: 'SF Mono', Menlo, monospace;
-    font-size: 14px; color: var(--text-secondary); transition: background 0.3s, border-color 0.3s;
+  /* Network topology widget */
+  .topology-widget {
+    position: relative; width: 100%; max-width: 600px; height: 200px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--code-bg); overflow: hidden; transition: background 0.3s, border-color 0.3s;
   }
-  .mock-dl { color: var(--dl-color); }
-  .mock-ul { color: var(--ul-color); }
+  .topology-widget svg { width: 100%; height: 100%; }
 
   /* TRACKLIST */
   .tracklist { padding: 72px 0; }
@@ -115,6 +119,23 @@
   .track-title { font-family: Georgia, 'Times New Roman', serif; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; flex-shrink: 0; min-width: 200px; }
   .track-desc { font-size: 17px; color: var(--text-muted); line-height: 1.55; }
   .track-duration { margin-left: auto; font-size: 16px; color: var(--text-ghost); font-variant-numeric: tabular-nums; flex-shrink: 0; padding-left: 16px; }
+
+  /* APP SCREENSHOTS */
+  .app-section { padding: 72px 0; }
+  .app-header { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 36px; }
+  .app-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px;
+    align-items: start;
+  }
+  .app-screenshot-card { display: flex; flex-direction: column; gap: 10px; }
+  .app-screenshot-card img {
+    width: 100%; height: 280px; object-fit: cover; object-position: top;
+    border-radius: 8px; border: 1px solid var(--border);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2); transition: border-color 0.3s;
+  }
+  .app-screenshot-card span {
+    font-size: 14px; color: var(--text-faint); letter-spacing: 0.02em;
+  }
 
   /* LINER NOTES */
   .liner-notes { padding: 72px 0; }
@@ -175,15 +196,15 @@
     .track { flex-wrap: wrap; gap: 4px 16px; }
     .track-title { min-width: unset; }
     .track-duration { margin-left: 48px; }
+    .app-grid { grid-template-columns: repeat(2, 1fr); }
+    .app-screenshot-card img { height: 220px; }
   }
-  .screenshot-showcase { padding: 0 0 60px; text-align: center; }
-  .screenshot-img { max-width: 600px; width: 100%; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
-  .feature-screenshot { max-width: 400px; width: 100%; border-radius: 8px; border: 1px solid var(--border); margin-top: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
-  @media (max-width: 768px) { .screenshot-img { max-width: 100%; } .feature-screenshot { max-width: 100%; } }
   @media (max-width: 480px) {
     .hero h1 { font-size: 44px; }
     .track-title { font-size: 19px; }
     .privacy-grid { grid-template-columns: 1fr 1fr; }
+    .app-grid { grid-template-columns: 1fr; }
+    .app-screenshot-card img { height: 260px; }
     footer { flex-direction: column; gap: 8px; text-align: center; }
   }
 </style>
@@ -206,14 +227,9 @@
   <div class="hero-overline reveal">macOS Network Monitor &mdash; Open Source</div>
   <h1 class="reveal reveal-d1">Spook</h1>
   <p class="hero-desc reveal reveal-d2">See what's talking on your Mac. Real-time traffic monitoring from your menu bar. Per-app breakdown, connection details, and history graphs.</p>
-  <div class="menubar-mock reveal reveal-d3">
-    <span class="mock-dl" id="dl-speed">&#8595; 1.2 MB/s</span>
-    <span class="mock-ul" id="ul-speed">&#8593; 340 KB/s</span>
+  <div class="topology-widget reveal reveal-d3" id="topology">
+    <svg id="topology-svg" viewBox="0 0 600 200" preserveAspectRatio="xMidYMid meet"></svg>
   </div>
-</section>
-
-<section class="screenshot-showcase container reveal">
-  <img src="images/app-overview.png" alt="Spook app panel showing speed stats, traffic history, and per-app list" class="screenshot-img">
 </section>
 
 <hr class="divider container">
@@ -221,13 +237,41 @@
 <section class="tracklist container">
   <div class="tracklist-header reveal">Features</div>
 
-  <div class="track reveal"><span class="track-num">A1</span><span class="track-title">Menu Bar Traffic</span><span class="track-desc">Live &#8595;/&#8593; speeds updating every second right in your menu bar.<br><img src="images/menu-bar.png" alt="Menu bar status item showing speeds" class="feature-screenshot"></span><span class="track-duration">1s</span></div>
-  <div class="track reveal reveal-d1"><span class="track-num">A2</span><span class="track-title">Per-App Breakdown</span><span class="track-desc">See exactly which apps are using your network and how much.<br><img src="images/app-list.png" alt="Per-app traffic breakdown list" class="feature-screenshot"></span><span class="track-duration">All</span></div>
+  <div class="track reveal"><span class="track-num">A1</span><span class="track-title">Menu Bar Traffic</span><span class="track-desc">Live &#8595;/&#8593; speeds updating every second right in your menu bar.</span><span class="track-duration">1s</span></div>
+  <div class="track reveal reveal-d1"><span class="track-num">A2</span><span class="track-title">Per-App Breakdown</span><span class="track-desc">See exactly which apps are using your network and how much.</span><span class="track-duration">All</span></div>
   <div class="track reveal reveal-d2"><span class="track-num">B1</span><span class="track-title">Connection Details</span><span class="track-desc">Remote IPs, ports, protocols, and reverse DNS hostnames for every connection.</span><span class="track-duration">DNS</span></div>
-  <div class="track reveal reveal-d3"><span class="track-num">B2</span><span class="track-title">Traffic Graphs</span><span class="track-desc">Visualize network usage over 1 hour, 24 hours, or 7 days with dynamic time labels.<br><img src="images/traffic-history.png" alt="Traffic history graph" class="feature-screenshot"></span><span class="track-duration">7d</span></div>
+  <div class="track reveal reveal-d3"><span class="track-num">B2</span><span class="track-title">Traffic Graphs</span><span class="track-desc">Visualize network usage over 1 hour, 24 hours, or 7 days with dynamic time labels.</span><span class="track-duration">7d</span></div>
   <div class="track reveal"><span class="track-num">C1</span><span class="track-title">Direction Filter</span><span class="track-desc">Toggle to focus on download-only or upload-only traffic.</span><span class="track-duration">&#8595;&#8593;</span></div>
   <div class="track reveal reveal-d1"><span class="track-num">C2</span><span class="track-title">Search &amp; Freeze</span><span class="track-desc">Find apps instantly with live search, freeze the list while inspecting rapidly changing entries.</span><span class="track-duration">&#9889;</span></div>
   <div class="track reveal reveal-d2"><span class="track-num">C3</span><span class="track-title">Pin Mode</span><span class="track-desc">Keep the detail window visible while you work. Appears in Cmd+Tab when pinned.</span><span class="track-duration">&#128204;</span></div>
+</section>
+
+<hr class="divider container">
+
+<section class="app-section container">
+  <div class="app-header reveal">App</div>
+  <div class="app-grid">
+    <div class="app-screenshot-card reveal">
+      <img src="images/app-overview.png" alt="Spook app panel showing speed stats, traffic history, and per-app list">
+      <span>Overview panel</span>
+    </div>
+    <div class="app-screenshot-card reveal reveal-d1">
+      <img src="images/speed-overview.png" alt="Speed overview showing download and upload rates">
+      <span>Speed readout</span>
+    </div>
+    <div class="app-screenshot-card reveal reveal-d2">
+      <img src="images/app-list.png" alt="Per-app traffic breakdown list">
+      <span>App breakdown</span>
+    </div>
+    <div class="app-screenshot-card reveal reveal-d3">
+      <img src="images/traffic-history.png" alt="Traffic history graph">
+      <span>Traffic history</span>
+    </div>
+    <div class="app-screenshot-card reveal reveal-d4">
+      <img src="images/menu-bar.png" alt="Menu bar status item showing speeds">
+      <span>Menu bar item</span>
+    </div>
+  </div>
 </section>
 
 <hr class="divider container">
@@ -290,7 +334,7 @@
 <hr class="divider container">
 
 <footer>
-  <span class="footer-name">Spook</span>
+  <span class="footer-name">Spook: a project by constellation design</span>
   <div class="footer-right">
     <a href="https://github.com/qaid/spook">GitHub</a>
     <span>MIT License</span>
@@ -312,17 +356,107 @@
   btns.forEach(function(b) { b.addEventListener('click', function() { setTheme(this.dataset.theme); }); });
 })();
 
-// Animated menu bar mock
+// Animated network topology
 (function() {
-  var dl = document.getElementById('dl-speed');
-  var ul = document.getElementById('ul-speed');
-  function fmt(v) { return v >= 1 ? v.toFixed(1) + ' MB/s' : (v * 1000).toFixed(0) + ' KB/s'; }
-  setInterval(function() {
-    var d = 0.2 + Math.random() * 3.5;
-    var u = 0.05 + Math.random() * 0.8;
-    dl.textContent = '\u2193 ' + fmt(d);
-    ul.textContent = '\u2191 ' + fmt(u);
-  }, 2000);
+  var svg = document.getElementById('topology-svg');
+  var ns = 'http://www.w3.org/2000/svg';
+
+  // Node positions — central hub + surrounding app nodes
+  var nodes = [
+    { x: 300, y: 100, r: 8, label: 'Mac', hub: true },
+    { x: 80,  y: 50,  r: 5, label: 'Safari' },
+    { x: 160, y: 160, r: 5, label: 'Slack' },
+    { x: 520, y: 45,  r: 5, label: 'cloudd' },
+    { x: 440, y: 155, r: 5, label: 'Mail' },
+    { x: 80,  y: 140, r: 4, label: 'DNS' },
+    { x: 520, y: 130, r: 4, label: 'Xcode' },
+    { x: 200, y: 40,  r: 4, label: 'curl' },
+    { x: 400, y: 50,  r: 4, label: 'ssh' },
+    { x: 300, y: 175, r: 4, label: 'brew' },
+    { x: 160, y: 90,  r: 3, label: '' },
+    { x: 440, y: 90,  r: 3, label: '' },
+  ];
+
+  // Draw edges
+  var edgeGroup = document.createElementNS(ns, 'g');
+  var edges = [];
+  for (var i = 1; i < nodes.length; i++) {
+    var line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', nodes[0].x);
+    line.setAttribute('y1', nodes[0].y);
+    line.setAttribute('x2', nodes[i].x);
+    line.setAttribute('y2', nodes[i].y);
+    line.setAttribute('stroke', 'var(--edge-color)');
+    line.setAttribute('stroke-width', '1');
+    edgeGroup.appendChild(line);
+    edges.push({ el: line, node: nodes[i] });
+  }
+  svg.appendChild(edgeGroup);
+
+  // Draw nodes
+  var nodeGroup = document.createElementNS(ns, 'g');
+  nodes.forEach(function(n) {
+    var c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', n.x);
+    c.setAttribute('cy', n.y);
+    c.setAttribute('r', n.r);
+    c.setAttribute('fill', 'var(--node-color)');
+    n.el = c;
+    nodeGroup.appendChild(c);
+
+    if (n.label) {
+      var t = document.createElementNS(ns, 'text');
+      t.setAttribute('x', n.x);
+      t.setAttribute('y', n.y + n.r + 14);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('fill', 'var(--text-faint)');
+      t.setAttribute('font-size', '10');
+      t.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, sans-serif');
+      t.textContent = n.label;
+      nodeGroup.appendChild(t);
+    }
+  });
+  svg.appendChild(nodeGroup);
+
+  // Pulse animation — packets traveling along edges
+  function sendPulse() {
+    var idx = Math.floor(Math.random() * edges.length);
+    var edge = edges[idx];
+    var isDl = Math.random() > 0.4;
+
+    var circle = document.createElementNS(ns, 'circle');
+    circle.setAttribute('r', '3');
+    circle.setAttribute('fill', isDl ? 'var(--pulse-dl)' : 'var(--pulse-ul)');
+    circle.setAttribute('opacity', '0.9');
+    svg.appendChild(circle);
+
+    var sx, sy, ex, ey;
+    if (isDl) {
+      sx = edge.node.x; sy = edge.node.y;
+      ex = nodes[0].x; ey = nodes[0].y;
+    } else {
+      sx = nodes[0].x; sy = nodes[0].y;
+      ex = edge.node.x; ey = edge.node.y;
+    }
+
+    var start = null;
+    var duration = 800 + Math.random() * 600;
+    function animate(ts) {
+      if (!start) start = ts;
+      var p = Math.min((ts - start) / duration, 1);
+      var ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      circle.setAttribute('cx', sx + (ex - sx) * ease);
+      circle.setAttribute('cy', sy + (ey - sy) * ease);
+      circle.setAttribute('opacity', p < 0.1 ? p * 9 : p > 0.85 ? (1 - p) * 6.67 : 0.9);
+      if (p < 1) requestAnimationFrame(animate);
+      else svg.removeChild(circle);
+    }
+    requestAnimationFrame(animate);
+  }
+
+  // Stagger pulses
+  setInterval(sendPulse, 400);
+  setTimeout(function() { setInterval(sendPulse, 600); }, 200);
 })();
 
 // Scroll reveal
