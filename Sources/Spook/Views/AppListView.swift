@@ -272,7 +272,7 @@ struct AppExpandedContentView: View {
                 ForEach(top3) { host in
                     HStack(spacing: Spacing.sm) {
                         Circle()
-                            .fill(host.hasEstablished ? Color.green : Color.gray)
+                            .fill(host.hasEstablished ? Color.spookUpload : Color.spookTextSecondary)
                             .frame(width: 6, height: 6)
 
                         Text(host.host)
@@ -285,7 +285,7 @@ struct AppExpandedContentView: View {
                                 .font(SpookFont.caption3)
                                 .foregroundColor(.spookTextSecondary)
                                 .padding(.horizontal, Spacing.sm)
-                                .padding(.vertical, 1)
+                                .padding(.vertical, Spacing.xxs / 2)
                                 .background(
                                     Capsule().fill(Color.spookSurfaceElevated)
                                 )
@@ -562,7 +562,7 @@ struct AppDrillInView: View {
                 Text(title)
                 if sortColumn == column {
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 7))
+                        .font(SpookFont.caption3)
                 }
             }
             .font(SpookFont.caption3)
