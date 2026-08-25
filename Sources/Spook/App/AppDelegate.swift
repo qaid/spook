@@ -179,6 +179,9 @@ class DetailPanel: NSPanel {
     /// Fires true when shown, false when closed — drives NetworkMonitor.isPanelVisible so lsof only runs while visible.
     var onVisibilityChanged: ((Bool) -> Void)?
 
+    // ponytail: borderless panels are not key by default; the filter field needs key status
+    override var canBecomeKey: Bool { true }
+
     override func close() {
         super.close()
         onVisibilityChanged?(false)
@@ -189,13 +192,11 @@ class DetailPanel: NSPanel {
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 620),
-            styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
+            styleMask: [.borderless, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
-        self.titlebarAppearsTransparent = true
-        self.titleVisibility = .hidden
         self.isFloatingPanel = true
         self.level = .floating
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -292,7 +293,6 @@ struct DetailPanelContentView: View {
         }
         .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow))
         .clipShape(RoundedRectangle(cornerRadius: CornerRadius.panel))
-        .shadow(color: .black.opacity(0.2), radius: 20, y: 8)
     }
 }
 

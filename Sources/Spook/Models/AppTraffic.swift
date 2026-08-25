@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import Darwin
 
 // MARK: - Icon Cache
 
@@ -177,6 +178,47 @@ enum IconResolver {
     static var defaultIcon: NSImage {
         NSImage(named: NSImage.computerName)
             ?? NSWorkspace.shared.icon(forFile: "/System")
+    }
+}
+
+// MARK: - Process Info Lookup
+
+/// Resolves the executable path and current working directory for a pid, to explain
+/// bare-IP connections when a row is expanded. Cached by pid since this is a syscall pair.
+enum ProcessInfoLookup {
+    // ponytail: keyed by pid only; a pid's cwd can change after caching but that's fine
+    // for an at-a-glance debugging aid, not a live-tracked value.
+    private static var cache: [pid_t: (exe: String?, cwd: String?)] = [:]
+
+    static func paths(for pid: pid_t) -> (exe: String?, cwd: String?) {
+        if let cached = cache[pid] {
+            return cached
+        }
+        let result = (exe: executablePath(for: pid), cwd: currentWorkingDirectory(for: pid))
+        cache[pid] = result
+        return result
+    }
+
+    private static func executablePath(for pid: pid_t) -> String? {
+        let pathBuffer = UnsafeMutablePointer<CChar>.allocate(capacity: Int(MAXPATHLEN))
+        defer { pathBuffer.deallocate() }
+        let size = UInt32(MAXPATHLEN)
+        guard proc_pidpath(pid, pathBuffer, size) > 0 else { return nil }
+        return String(cString: pathBuffer)
+    }
+
+    private static func currentWorkingDirectory(for pid: pid_t) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        let result = withUnsafeMutablePointer(to: &info) { ptr -> Int32 in
+            proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, ptr, size)
+        }
+        guard result == size else { return nil }
+        return withUnsafePointer(to: info.pvi_cdir.vip_path) { ptr -> String in
+            ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { cPtr in
+                String(cString: cPtr)
+            }
+        }
     }
 }
 
