@@ -221,7 +221,9 @@ struct AppTraffic: Identifiable {
 }
 
 struct Connection: Identifiable {
-    let id = UUID()
+    // ponytail: stable id from connection tuple instead of UUID() so SwiftUI rows don't
+    // rebuild (and DNS .task doesn't refire) every tick when the connection is unchanged.
+    var id: String { "\(remoteAddress):\(remotePort):\(protocolType)" }
     let remoteAddress: String
     let remotePort: UInt16
     let localPort: UInt16
