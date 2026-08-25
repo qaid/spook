@@ -45,7 +45,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // ponytail: brief blocking wait so the final history flush lands before the process exits
         let semaphore = DispatchSemaphore(value: 0)
-        Task {
+        Task.detached {
             await HistoryStore.shared.flush()
             semaphore.signal()
         }
