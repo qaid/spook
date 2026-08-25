@@ -21,13 +21,32 @@ class NetworkMonitor {
 
     var onUpdate: ((Int64, Int64) -> Void)?
 
+    /// Whether the detail panel is visible — lsof only runs while true. ponytail: avoids running lsof every second when nobody's looking at connections.
+    var isPanelVisible = false
+
     private var monitorTask: Task<Void, Never>?
     private var previousBytesIn: Int64 = 0
     private var previousBytesOut: Int64 = 0
+    private var lastNetstatSampleTime: Date?
     private var previousAppData: [String: (bytesIn: Int64, bytesOut: Int64)] = [:]
+    private var connectionsByPid: [pid_t: [Connection]] = [:]
+    private var flushTickCount = 0
+
+    // Persistent nettop process state
+    private var nettopProcess: Process?
+    private var nettopPipe: Pipe?
+    private var nettopBuffer = ""
+    private var lastNettopSampleTime: Date?
+    private var isMonitoring = false
 
     func startMonitoring() async {
+        isMonitoring = true
         await readInitialStats()
+        startNettopStream()
+
+        Task {
+            await HistoryStore.shared.pruneOldData()
+        }
 
         monitorTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -42,56 +61,62 @@ class NetworkMonitor {
     }
 
     func stopMonitoring() {
+        isMonitoring = false
         monitorTask?.cancel()
         monitorTask = nil
+        stopNettopStream()
     }
 
     private func readInitialStats() async {
-        let (stats, perAppData) = await Task.detached(priority: .userInitiated) { [weak self] in
-            guard let self else { return ((bytesIn: Int64(0), bytesOut: Int64(0)), [AppTraffic]()) }
-            let s = self.readNetworkStats()
-            let p = self.readPerAppStats()
-            return (s, p)
+        let stats = await Task.detached(priority: .userInitiated) { [weak self] in
+            self?.readNetworkStats() ?? (bytesIn: 0, bytesOut: 0)
         }.value
 
         previousBytesIn = stats.bytesIn
         previousBytesOut = stats.bytesOut
-
-        for app in perAppData {
-            let key = "\(app.processName).\(app.pid)"
-            previousAppData[key] = (app.bytesIn, app.bytesOut)
-        }
+        lastNetstatSampleTime = Date()
     }
 
     private func updateStats() async {
-        // Run all three system commands concurrently off the main thread
-        let (stats, perAppData, connectionsByPid) = await Task.detached(priority: .userInitiated) { [weak self] in
+        // Run lsof only when the panel is visible; netstat always runs.
+        let shouldReadConnections = isPanelVisible
+        let (stats, newConnections) = await Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else {
-                return ((bytesIn: Int64(0), bytesOut: Int64(0)), [AppTraffic](), [pid_t: [Connection]]())
+                return ((bytesIn: Int64(0), bytesOut: Int64(0)), [pid_t: [Connection]]())
             }
             async let s = self.readNetworkStats()
-            async let p = self.readPerAppStats()
-            async let c = self.readConnectionDetails()
-            return await (s, p, c)
+            async let c: [pid_t: [Connection]] = shouldReadConnections ? self.readConnectionDetails() : [:]
+            return await (s, c)
         }.value
 
         // --- Everything below runs on @MainActor ---
 
-        // Update total stats
+        if shouldReadConnections {
+            connectionsByPid = newConnections
+        } else {
+            // ponytail: clear connections when the panel is hidden; cache the last result if the reopen delay matters
+            connectionsByPid = [:]
+        }
+
+        let now = Date()
+        let elapsed = lastNetstatSampleTime.map { now.timeIntervalSince($0) } ?? 1.0
+        lastNetstatSampleTime = now
+
         let bytesInDelta = stats.bytesIn - previousBytesIn
         let bytesOutDelta = stats.bytesOut - previousBytesOut
 
-        downloadSpeed = max(0, bytesInDelta)
-        uploadSpeed = max(0, bytesOutDelta)
+        let safeElapsed = elapsed > 0 ? elapsed : 1.0
+        downloadSpeed = Int64(max(0, Double(bytesInDelta)) / safeElapsed)
+        uploadSpeed = Int64(max(0, Double(bytesOutDelta)) / safeElapsed)
 
-        totalBytesIn += downloadSpeed
-        totalBytesOut += uploadSpeed
+        totalBytesIn += max(0, bytesInDelta)
+        totalBytesOut += max(0, bytesOutDelta)
 
         previousBytesIn = stats.bytesIn
         previousBytesOut = stats.bytesOut
 
         // Record to in-memory ring buffer for 1-hour graph
-        recentSamples.append(SpeedSample(timestamp: Date(), bytesIn: downloadSpeed, bytesOut: uploadSpeed))
+        recentSamples.append(SpeedSample(timestamp: now, bytesIn: downloadSpeed, bytesOut: uploadSpeed))
         if recentSamples.count > Self.maxRecentSamples {
             recentSamples.removeFirst(recentSamples.count - Self.maxRecentSamples)
         }
@@ -104,7 +129,124 @@ class NetworkMonitor {
             }
         }
 
-        // Update per-app stats
+        // Flush history to disk every ~10s
+        flushTickCount += 1
+        if flushTickCount >= 10 {
+            flushTickCount = 0
+            Task {
+                await HistoryStore.shared.flush()
+            }
+        }
+
+        onUpdate?(downloadSpeed, uploadSpeed)
+    }
+
+    // MARK: - Per-App Stats (persistent nettop stream)
+
+    private func startNettopStream() {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
+        process.arguments = ["-P", "-L", "0", "-s", "1", "-x", "-J", "bytes_in,bytes_out"]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+
+        nettopBuffer = ""
+
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
+            Task { @MainActor in
+                self?.appendNettopChunk(chunk)
+            }
+        }
+
+        process.terminationHandler = { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.isMonitoring else { return }
+                // ponytail: naive restart-after-delay instead of exponential backoff
+                try? await Task.sleep(for: .seconds(1))
+                if self.isMonitoring {
+                    self.startNettopStream()
+                }
+            }
+        }
+
+        do {
+            try process.run()
+            nettopProcess = process
+            nettopPipe = pipe
+        } catch {
+            nettopProcess = nil
+            nettopPipe = nil
+        }
+    }
+
+    private func stopNettopStream() {
+        nettopPipe?.fileHandleForReading.readabilityHandler = nil
+        nettopProcess?.terminationHandler = nil
+        if nettopProcess?.isRunning == true {
+            nettopProcess?.terminate()
+        }
+        nettopProcess = nil
+        nettopPipe = nil
+        nettopBuffer = ""
+    }
+
+    private static let nettopHeaderMarker = ",bytes_in,bytes_out,"
+
+    /// Accumulate streamed nettop output; each time a new header line arrives, the previously
+    /// buffered sample (if any) is complete and gets parsed and delivered.
+    private func appendNettopChunk(_ chunk: String) {
+        nettopBuffer += chunk
+
+        var lines = nettopBuffer.components(separatedBy: "\n")
+        // Keep the last (possibly incomplete) line back in the buffer.
+        let trailing = lines.removeLast()
+
+        var currentSampleLines: [String] = []
+        for line in lines {
+            if line.hasPrefix(",") && line.contains(Self.nettopHeaderMarker) {
+                // New sample starting — flush the previous one if it has content.
+                if !currentSampleLines.isEmpty {
+                    handleNettopSample(currentSampleLines)
+                }
+                currentSampleLines = []
+            } else {
+                currentSampleLines.append(line)
+            }
+        }
+
+        // Re-buffer whatever wasn't flushed yet, plus the trailing partial line.
+        nettopBuffer = currentSampleLines.joined(separator: "\n")
+        if !nettopBuffer.isEmpty {
+            nettopBuffer += "\n"
+        }
+        nettopBuffer += trailing
+    }
+
+    private func handleNettopSample(_ lines: [String]) {
+        let output = lines.joined(separator: "\n")
+        let perAppData = parseNettopOutput(output)
+
+        let now = Date()
+        let elapsed = lastNettopSampleTime.map { now.timeIntervalSince($0) } ?? 1.0
+        lastNettopSampleTime = now
+
+        if previousAppData.isEmpty {
+            // Seed only — no speeds yet.
+            for app in perAppData {
+                let key = "\(app.processName).\(app.pid)"
+                previousAppData[key] = (app.bytesIn, app.bytesOut)
+            }
+            return
+        }
+
+        applyPerAppSample(perAppData, elapsed: elapsed > 0 ? elapsed : 1.0)
+    }
+
+    private func applyPerAppSample(_ perAppData: [AppTraffic], elapsed: Double) {
         var updatedApps = perAppData
         var currentKeys = Set<String>()
 
@@ -113,8 +255,10 @@ class NetworkMonitor {
             currentKeys.insert(key)
 
             if let previous = previousAppData[key] {
-                updatedApps[i].speedIn = max(0, updatedApps[i].bytesIn - previous.bytesIn)
-                updatedApps[i].speedOut = max(0, updatedApps[i].bytesOut - previous.bytesOut)
+                let deltaIn = updatedApps[i].bytesIn - previous.bytesIn
+                let deltaOut = updatedApps[i].bytesOut - previous.bytesOut
+                updatedApps[i].speedIn = Int64(max(0, Double(deltaIn)) / elapsed)
+                updatedApps[i].speedOut = Int64(max(0, Double(deltaOut)) / elapsed)
                 updatedApps[i].previousBytesIn = previous.bytesIn
                 updatedApps[i].previousBytesOut = previous.bytesOut
             }
@@ -126,7 +270,6 @@ class NetworkMonitor {
             previousAppData.removeValue(forKey: key)
         }
 
-        // Get connection details for active apps
         appTraffic = updatedApps
             .filter { $0.bytesIn > 0 || $0.bytesOut > 0 }
             .map { app in
@@ -136,12 +279,9 @@ class NetworkMonitor {
             }
             .sorted { $0.totalSpeed > $1.totalSpeed }
 
-        // Record per-app stats to history
         Task {
             await HistoryStore.shared.recordAppStats(appTraffic)
         }
-
-        onUpdate?(downloadSpeed, uploadSpeed)
     }
 
     // MARK: - Total Network Stats (netstat)
@@ -157,9 +297,9 @@ class NetworkMonitor {
 
         do {
             try task.run()
-            task.waitUntilExit()
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
             guard let output = String(data: data, encoding: .utf8) else {
                 return (0, 0)
             }
@@ -199,32 +339,6 @@ class NetworkMonitor {
         }
 
         return (totalIn, totalOut)
-    }
-
-    // MARK: - Per-App Stats (nettop)
-
-    nonisolated private func readPerAppStats() -> [AppTraffic] {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-        task.arguments = ["-P", "-L", "1", "-x", "-J", "bytes_in,bytes_out"]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else {
-                return []
-            }
-
-            return parseNettopOutput(output)
-        } catch {
-            return []
-        }
     }
 
     nonisolated private func parseNettopOutput(_ output: String) -> [AppTraffic] {
@@ -291,9 +405,9 @@ class NetworkMonitor {
 
         do {
             try task.run()
-            task.waitUntilExit()
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
             guard let output = String(data: data, encoding: .utf8) else {
                 return [:]
             }

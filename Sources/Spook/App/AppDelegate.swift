@@ -35,6 +35,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         detailPanel?.onOpenSettings = { [weak self] in
             self?.openSettings()
         }
+        detailPanel?.onVisibilityChanged = { [weak self] visible in
+            self?.networkMonitor?.isPanelVisible = visible
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        networkMonitor?.stopMonitoring()
+
+        // ponytail: brief blocking wait so the final history flush lands before the process exits
+        let semaphore = DispatchSemaphore(value: 0)
+        Task.detached {
+            await HistoryStore.shared.flush()
+            semaphore.signal()
+        }
+        _ = semaphore.wait(timeout: .now() + 2)
     }
 
     private func setupClickOutsideMonitor() {
@@ -109,6 +124,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             panel.makeKeyAndOrderFront(nil)
+            panel.onVisibilityChanged?(true)
         }
     }
 
@@ -160,6 +176,13 @@ class DetailPanel: NSPanel {
     var isPinned: Bool = false
     private var monitor: NetworkMonitor
     var onOpenSettings: (() -> Void)?
+    /// Fires true when shown, false when closed — drives NetworkMonitor.isPanelVisible so lsof only runs while visible.
+    var onVisibilityChanged: ((Bool) -> Void)?
+
+    override func close() {
+        super.close()
+        onVisibilityChanged?(false)
+    }
 
     init(monitor: NetworkMonitor) {
         self.monitor = monitor

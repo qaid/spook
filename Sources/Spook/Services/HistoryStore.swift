@@ -7,7 +7,19 @@ actor HistoryStore {
     private var db: OpaquePointer?
     private let dbPath: String
 
+    // Cached formatter — avoid allocating one per write. ponytail: also avoids repeated Calendar work below where cheap.
+    private let dayFormatter: DateFormatter
+
+    // In-memory accumulators, flushed to disk periodically (see flush()).
+    private var pendingDailyTotals: [String: (bytesIn: Int64, bytesOut: Int64)] = [:]
+    private var pendingHourlySamples: [Int: (bytesIn: Int64, bytesOut: Int64)] = [:]
+    private var pendingAppStats: [String: (date: String, processName: String, displayName: String, bytesIn: Int64, bytesOut: Int64)] = [:]
+
     init() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        dayFormatter = formatter
+
         // Store in Application Support
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let spookDir = appSupport.appendingPathComponent("Spook", isDirectory: true)
@@ -20,6 +32,15 @@ actor HistoryStore {
         // Open database synchronously in init (nonisolated context)
         if sqlite3_open(dbPath, &db) != SQLITE_OK {
             print("Failed to open database at \(dbPath)")
+        }
+
+        // Enable WAL so concurrent readers don't block on the periodic write transaction.
+        var errMsg: UnsafeMutablePointer<CChar>?
+        if sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nil, nil, &errMsg) != SQLITE_OK {
+            if let errMsg = errMsg {
+                print("SQL error: \(String(cString: errMsg))")
+                sqlite3_free(errMsg)
+            }
         }
 
         // Create tables synchronously
@@ -61,57 +82,6 @@ actor HistoryStore {
         }
     }
 
-    private nonisolated func openDatabaseSync(_ path: String) -> OpaquePointer? {
-        var database: OpaquePointer?
-        if sqlite3_open(path, &database) != SQLITE_OK {
-            print("Failed to open database at \(path)")
-            return nil
-        }
-        return database
-    }
-
-    private func openDatabase() {
-        if sqlite3_open(dbPath, &db) != SQLITE_OK {
-            print("Failed to open database at \(dbPath)")
-        }
-    }
-
-    private func createTables() {
-        // Daily totals table
-        let createDailyTotals = """
-            CREATE TABLE IF NOT EXISTS daily_totals (
-                date TEXT PRIMARY KEY,
-                bytes_in INTEGER DEFAULT 0,
-                bytes_out INTEGER DEFAULT 0
-            );
-        """
-
-        // Per-app daily stats
-        let createAppStats = """
-            CREATE TABLE IF NOT EXISTS app_daily_stats (
-                date TEXT,
-                process_name TEXT,
-                display_name TEXT,
-                bytes_in INTEGER DEFAULT 0,
-                bytes_out INTEGER DEFAULT 0,
-                PRIMARY KEY (date, process_name)
-            );
-        """
-
-        // Hourly samples for graphs (last 24 hours)
-        let createHourlySamples = """
-            CREATE TABLE IF NOT EXISTS hourly_samples (
-                timestamp INTEGER PRIMARY KEY,
-                bytes_in INTEGER DEFAULT 0,
-                bytes_out INTEGER DEFAULT 0
-            );
-        """
-
-        execute(createDailyTotals)
-        execute(createAppStats)
-        execute(createHourlySamples)
-    }
-
     private func execute(_ sql: String) {
         var errMsg: UnsafeMutablePointer<CChar>?
         if sqlite3_exec(db, sql, nil, nil, &errMsg) != SQLITE_OK {
@@ -122,48 +92,16 @@ actor HistoryStore {
         }
     }
 
-    // MARK: - Recording Data
+    // MARK: - Recording Data (in-memory only — see flush())
 
     func recordTotals(bytesIn: Int64, bytesOut: Int64) {
         let today = dateString(Date())
-
-        let sql = """
-            INSERT INTO daily_totals (date, bytes_in, bytes_out)
-            VALUES (?, ?, ?)
-            ON CONFLICT(date) DO UPDATE SET
-                bytes_in = bytes_in + excluded.bytes_in,
-                bytes_out = bytes_out + excluded.bytes_out;
-        """
-
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, today, -1, nil)
-            sqlite3_bind_int64(stmt, 2, bytesIn)
-            sqlite3_bind_int64(stmt, 3, bytesOut)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
+        let existing = pendingDailyTotals[today] ?? (0, 0)
+        pendingDailyTotals[today] = (existing.bytesIn + bytesIn, existing.bytesOut + bytesOut)
     }
 
     func recordAppStats(_ apps: [AppTraffic]) {
         let today = dateString(Date())
-
-        execute("BEGIN TRANSACTION;")
-
-        let sql = """
-            INSERT INTO app_daily_stats (date, process_name, display_name, bytes_in, bytes_out)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(date, process_name) DO UPDATE SET
-                display_name = excluded.display_name,
-                bytes_in = bytes_in + excluded.bytes_in,
-                bytes_out = bytes_out + excluded.bytes_out;
-        """
-
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            execute("ROLLBACK;")
-            return
-        }
 
         for app in apps {
             let deltaIn = app.bytesIn - app.previousBytesIn
@@ -171,49 +109,105 @@ actor HistoryStore {
 
             guard deltaIn > 0 || deltaOut > 0 else { continue }
 
-            sqlite3_reset(stmt)
-            sqlite3_clear_bindings(stmt)
-
-            sqlite3_bind_text(stmt, 1, today, -1, nil)
-            sqlite3_bind_text(stmt, 2, app.processName, -1, nil)
-            sqlite3_bind_text(stmt, 3, app.displayName, -1, nil)
-            sqlite3_bind_int64(stmt, 4, deltaIn)
-            sqlite3_bind_int64(stmt, 5, deltaOut)
-            if sqlite3_step(stmt) != SQLITE_DONE {
-                sqlite3_finalize(stmt)
-                execute("ROLLBACK;")
-                return
+            let key = "\(today)|\(app.processName)"
+            if let existing = pendingAppStats[key] {
+                pendingAppStats[key] = (today, app.processName, app.displayName, existing.bytesIn + deltaIn, existing.bytesOut + deltaOut)
+            } else {
+                pendingAppStats[key] = (today, app.processName, app.displayName, deltaIn, deltaOut)
             }
         }
-
-        sqlite3_finalize(stmt)
-        execute("COMMIT;")
     }
 
     func recordHourlySample(bytesIn: Int64, bytesOut: Int64) {
         let hour = hourTimestamp(Date())
+        let existing = pendingHourlySamples[hour] ?? (0, 0)
+        pendingHourlySamples[hour] = (existing.bytesIn + bytesIn, existing.bytesOut + bytesOut)
+    }
 
-        let sql = """
+    // MARK: - Flushing
+
+    /// Writes all pending in-memory data to disk in a single transaction and clears the accumulators.
+    func flush() {
+        guard !pendingDailyTotals.isEmpty || !pendingHourlySamples.isEmpty || !pendingAppStats.isEmpty else {
+            return
+        }
+
+        execute("BEGIN TRANSACTION;")
+
+        let dailyTotalsSql = """
+            INSERT INTO daily_totals (date, bytes_in, bytes_out)
+            VALUES (?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+                bytes_in = bytes_in + excluded.bytes_in,
+                bytes_out = bytes_out + excluded.bytes_out;
+        """
+        var dailyStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, dailyTotalsSql, -1, &dailyStmt, nil) == SQLITE_OK {
+            for (date, totals) in pendingDailyTotals {
+                sqlite3_reset(dailyStmt)
+                sqlite3_clear_bindings(dailyStmt)
+                sqlite3_bind_text(dailyStmt, 1, date, -1, nil)
+                sqlite3_bind_int64(dailyStmt, 2, totals.bytesIn)
+                sqlite3_bind_int64(dailyStmt, 3, totals.bytesOut)
+                sqlite3_step(dailyStmt)
+            }
+        }
+        sqlite3_finalize(dailyStmt)
+
+        let hourlySql = """
             INSERT INTO hourly_samples (timestamp, bytes_in, bytes_out)
             VALUES (?, ?, ?)
             ON CONFLICT(timestamp) DO UPDATE SET
                 bytes_in = bytes_in + excluded.bytes_in,
                 bytes_out = bytes_out + excluded.bytes_out;
         """
-
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_int64(stmt, 1, Int64(hour))
-            sqlite3_bind_int64(stmt, 2, bytesIn)
-            sqlite3_bind_int64(stmt, 3, bytesOut)
-            sqlite3_step(stmt)
+        var hourlyStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, hourlySql, -1, &hourlyStmt, nil) == SQLITE_OK {
+            for (timestamp, totals) in pendingHourlySamples {
+                sqlite3_reset(hourlyStmt)
+                sqlite3_clear_bindings(hourlyStmt)
+                sqlite3_bind_int64(hourlyStmt, 1, Int64(timestamp))
+                sqlite3_bind_int64(hourlyStmt, 2, totals.bytesIn)
+                sqlite3_bind_int64(hourlyStmt, 3, totals.bytesOut)
+                sqlite3_step(hourlyStmt)
+            }
         }
-        sqlite3_finalize(stmt)
+        sqlite3_finalize(hourlyStmt)
+
+        let appStatsSql = """
+            INSERT INTO app_daily_stats (date, process_name, display_name, bytes_in, bytes_out)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(date, process_name) DO UPDATE SET
+                display_name = excluded.display_name,
+                bytes_in = bytes_in + excluded.bytes_in,
+                bytes_out = bytes_out + excluded.bytes_out;
+        """
+        var appStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, appStatsSql, -1, &appStmt, nil) == SQLITE_OK {
+            for (_, entry) in pendingAppStats {
+                sqlite3_reset(appStmt)
+                sqlite3_clear_bindings(appStmt)
+                sqlite3_bind_text(appStmt, 1, entry.date, -1, nil)
+                sqlite3_bind_text(appStmt, 2, entry.processName, -1, nil)
+                sqlite3_bind_text(appStmt, 3, entry.displayName, -1, nil)
+                sqlite3_bind_int64(appStmt, 4, entry.bytesIn)
+                sqlite3_bind_int64(appStmt, 5, entry.bytesOut)
+                sqlite3_step(appStmt)
+            }
+        }
+        sqlite3_finalize(appStmt)
+
+        execute("COMMIT;")
+
+        pendingDailyTotals.removeAll()
+        pendingHourlySamples.removeAll()
+        pendingAppStats.removeAll()
     }
 
     // MARK: - Querying Data
 
     func getDailyTotals(for date: Date) -> (bytesIn: Int64, bytesOut: Int64) {
+        flush()
         let dateStr = dateString(date)
 
         let sql = "SELECT bytes_in, bytes_out FROM daily_totals WHERE date = ?;"
@@ -235,6 +229,7 @@ actor HistoryStore {
     }
 
     func getWeeklyTotals() -> (bytesIn: Int64, bytesOut: Int64) {
+        flush()
         let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date())!
         let weekAgoStr = dateString(weekAgo)
 
@@ -257,6 +252,7 @@ actor HistoryStore {
     }
 
     func getHourlySamples(hours: Int = 24) -> [(timestamp: Date, bytesIn: Int64, bytesOut: Int64)] {
+        flush()
         let cutoff = hourTimestamp(Date()) - (hours * 3600)
 
         let sql = """
@@ -285,6 +281,7 @@ actor HistoryStore {
     }
 
     func getTopApps(for date: Date, limit: Int = 10) -> [(processName: String, displayName: String, bytesIn: Int64, bytesOut: Int64)] {
+        flush()
         let dateStr = dateString(date)
 
         let sql = """
@@ -318,6 +315,7 @@ actor HistoryStore {
     // MARK: - Maintenance
 
     func pruneOldData(daysToKeep: Int = 30) {
+        flush()
         let cutoff = Calendar.current.date(byAdding: .day, value: -daysToKeep, to: Date())!
         let cutoffStr = dateString(cutoff)
 
@@ -345,6 +343,9 @@ actor HistoryStore {
     }
 
     func clearAllHistory() {
+        pendingDailyTotals.removeAll()
+        pendingHourlySamples.removeAll()
+        pendingAppStats.removeAll()
         execute("DELETE FROM daily_totals;")
         execute("DELETE FROM app_daily_stats;")
         execute("DELETE FROM hourly_samples;")
@@ -353,9 +354,7 @@ actor HistoryStore {
     // MARK: - Helpers
 
     private func dateString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        dayFormatter.string(from: date)
     }
 
     private func hourTimestamp(_ date: Date) -> Int {
