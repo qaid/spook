@@ -19,6 +19,10 @@ class NetworkMonitor {
     private(set) var recentSamples: [SpeedSample] = []
     private static let maxRecentSamples = 3600  // 1 hour of per-second data
 
+    /// Per-app rate history for mini sparklines, keyed by AppTraffic.id, capped at 60 samples.
+    private(set) var appSpeedHistory: [String: [(in: Int64, out: Int64)]] = [:]
+    private static let maxAppSpeedSamples = 60
+
     var onUpdate: ((Int64, Int64) -> Void)?
 
     /// Whether the detail panel is visible — lsof only runs while true. ponytail: avoids running lsof every second when nobody's looking at connections.
@@ -278,6 +282,20 @@ class NetworkMonitor {
                 return appWithConnections
             }
             .sorted { $0.totalSpeed > $1.totalSpeed }
+
+        var liveKeys = Set<String>()
+        for app in appTraffic {
+            liveKeys.insert(app.id)
+            var history = appSpeedHistory[app.id] ?? []
+            history.append((in: app.speedIn, out: app.speedOut))
+            if history.count > Self.maxAppSpeedSamples {
+                history.removeFirst(history.count - Self.maxAppSpeedSamples)
+            }
+            appSpeedHistory[app.id] = history
+        }
+        for key in appSpeedHistory.keys where !liveKeys.contains(key) {
+            appSpeedHistory.removeValue(forKey: key)
+        }
 
         Task {
             await HistoryStore.shared.recordAppStats(appTraffic)

@@ -115,7 +115,7 @@ struct DetailView: View {
                         .transition(.opacity)
                 }
             } else {
-                AppListView(apps: filteredApps, directionFilter: directionFilter, maxTraffic: maxTraffic)
+                AppListView(apps: filteredApps, directionFilter: directionFilter, maxTraffic: maxTraffic, monitor: monitor)
             }
         }
         .frame(width: 400, height: 600)
